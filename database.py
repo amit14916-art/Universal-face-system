@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# DATABASE_URL configuration (Replace with your local Postgres credentials)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost/face_db")
+# DATABASE_URL configuration (Defaulting to SQLite for testing)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./faces.db")
 
 Base = declarative_base()
 
