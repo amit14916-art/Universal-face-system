@@ -10,13 +10,16 @@ class RegisteredFace(Base):
     role = Column(String, default="member") # 'staff', 'vip', 'gym_member'
     # 128-d vector yahan PickleType mein save hoga
     face_encoding = Column(PickleType, nullable=False) 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    image_path = Column(String, nullable=True) # Path to saved face image
+    created_at = Column(DateTime, default=datetime.now)
     is_active = Column(Boolean, default=True)
+    is_blacklisted = Column(Boolean, default=False)
+    notes = Column(String, nullable=True)
 
 class AttendanceLog(Base):
     __tablename__ = "attendance_logs"
     
     id = Column(Integer, primary_key=True, index=True)
     face_id = Column(Integer) # RegisteredFace.id se link hoga
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     location = Column(String, default="Main Entrance")

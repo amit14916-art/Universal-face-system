@@ -3,6 +3,7 @@ import asyncio
 import numpy as np
 import sys
 import threading
+import time
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
@@ -32,18 +33,18 @@ def process_frame(frame: np.ndarray):
     Runs face detection and matching synchronously by dispatching
     async DB calls to the background event loop.
     """
-    face_locations, face_encodings = run_async(face_service.get_face_embeddings(frame))
+    face_locations, face_encodings, faces = run_async(face_service.get_face_embeddings(frame))
 
     if not face_encodings:
         return frame
 
     face_names = []
-    for encoding in face_encodings:
-        face_id, name = run_async(face_service.match_face(encoding))
+    for encoding, face_coords in zip(face_encodings, faces):
+        face_id, name = run_async(face_service.match_face(encoding, frame, face_coords))
         if face_id is not None:
-            print(f"✅ Access Granted: {name}")
+            print(f"Access Granted: {name}")
         else:
-            print("❌ Access Denied: Unknown Face")
+            print("Access Denied: Unknown Face")
         face_names.append(name)
 
     frame = face_service.draw_metadata(frame, face_locations, face_names)
@@ -54,18 +55,25 @@ def capture_loop():
     """Main webcam loop — runs on the main thread (required for OpenCV GUI on Windows)."""
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("❌ Error: Could not open webcam.")
+        print("Error: Could not open webcam.")
         return
 
-    print("✅ Started face recognition. Press 'Q' to quit.")
+    print("Started face recognition. Press 'Q' to quit.")
 
     try:
+        retry_count = 0
         while True:
             ret, frame = cap.read()
             if not ret:
-                print("❌ Failed to capture frame.")
-                break
-
+                retry_count += 1
+                if retry_count > 10:
+                    print("Error: Constant camera failure. Please check your webcam connection.")
+                    break
+                # Try a small sleep and continue
+                time.sleep(0.1)
+                continue
+            
+            retry_count = 0 # Reset on success
             frame = process_frame(frame)
             cv2.imshow("Universal Face System", frame)
 
