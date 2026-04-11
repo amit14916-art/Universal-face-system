@@ -77,9 +77,10 @@ async def match_face(current_encoding: np.ndarray, frame: np.ndarray = None, fac
         best_score = -1.0
         best_match = None
         
-        # --- TOLERANT MATCHING ---
-        # We use a very low threshold (0.20) to catch returning visitors in poor lighting.
-        MATCH_THRESHOLD = 0.20 
+        # --- HIGHLY TOLERANT MATCHING ---
+        # Dropping threshold incredibly low to perfectly capture head turns, 
+        # slouching, and varying lighting conditions as the SAME person.
+        MATCH_THRESHOLD = 0.10 
 
         for person in all_registered:
             db_enc = person.face_encoding
@@ -103,14 +104,21 @@ async def match_face(current_encoding: np.ndarray, frame: np.ndarray = None, fac
         if best_match is not None and best_score >= MATCH_THRESHOLD:
             # RECOGNIZED
             print(f"--> [MATCH] {best_match.name} (Score: {best_score:.3f})")
-            matched_person = best_match
+            return best_match.id, best_match.name
         else:
-            # CHECK THROTTLE: Don't create visitors too fast
-            if (current_time_val - last_visitor_created_at) < NEW_VISITOR_THROTTLE:
-                print(f"--> [WAIT] Skipping new registration (Cooling down...) Best Score: {best_score:.3f}")
-                return None, "Wait"
+            # CHECK THROTTLE: Don't create visitors repeatedly across different angles.
+            # We now mandate a strict 60-second wait before creating ANY new auto-visitor 
+            # and ignore very small/distant faces.
+            x, y, w, h = map(int, face_coords[:4])
+            if w < 60 or h < 60:
+                print(f"--> [IGNORE] Unknown face too small to enroll ({w}x{h})")
+                return None, "Unknown"
 
-            # NEW FACE CAPTURE
+            if (current_time_val - last_visitor_created_at) < 60:
+                print(f"--> [WAIT] Unknown face detected, but system is still processing a recent enrollment.")
+                return None, "Unknown"
+
+            # NEW FACE CAPTURE (Auto-Enroll)
             v_id = int(current_time_val * 1000)
             v_name = f"Visitor_{v_id}"
             img = await save_face_image(v_id, frame, face_coords) if frame is not None else None
@@ -121,29 +129,22 @@ async def match_face(current_encoding: np.ndarray, frame: np.ndarray = None, fac
             session.add(matched_person)
             await session.flush()
             last_visitor_created_at = current_time_val
-            print(f"--> [NEW] Registering {v_name} (Best score was only {best_score:.3f})")
+            print(f"--> [NEW] Successfully auto-registered {v_name}")
 
-        # LOGGING
-        last_log = last_logged_time.get(matched_person.id, 0)
-        if (current_time_val - last_log) > ATTENDANCE_COOLDOWN:
-            session.add(AttendanceLog(face_id=matched_person.id, timestamp=datetime.now()))
-            last_logged_time[matched_person.id] = current_time_val
-            print(f"--> [LOG] Access verified for {matched_person.name}")
-        
+        # We only log activity when a completely NEW identity is created.
+        # Recognized faces do not generate any further activity logs as requested.
+        session.add(AttendanceLog(face_id=matched_person.id, timestamp=datetime.now()))
         await session.commit()
         return matched_person.id, matched_person.name
 
 async def save_face_image(id_val, frame, face_coords):
     try:
-        x, y, w, h = map(int, face_coords[:4])
-        pad = int(h * 0.3)
-        y1, y2 = max(0, y - pad), min(frame.shape[0], y + h + pad)
-        x1, x2 = max(0, x - pad), min(frame.shape[1], x + w + pad)
-        face_img = frame[y1:y2, x1:x2]
-        if face_img.size == 0: return None
+        if frame is None or frame.size == 0: return None
         rel = f"static/faces/{id_val}.jpg"
         abs_p = os.path.join(BASE_DIR, rel)
         os.makedirs(os.path.dirname(abs_p), exist_ok=True)
-        cv2.imwrite(abs_p, face_img)
+        # Capture the entire frame instead of cropping the face, 
+        # so we get the whole body / full scene.
+        cv2.imwrite(abs_p, frame)
         return rel
     except: return None
