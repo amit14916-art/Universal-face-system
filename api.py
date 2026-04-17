@@ -49,10 +49,11 @@ async def startup_event():
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/faces", StaticFiles(directory="static/faces"), name="faces")
+app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
 
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")
+    return FileResponse("frontend/dist/index.html")
 
 @app.get("/api/users")
 async def get_users(db: AsyncSession = Depends(get_db)):
@@ -99,22 +100,29 @@ async def get_logs(db: AsyncSession = Depends(get_db), limit: int = 50):
 
 @app.get("/api/stats/hourly")
 async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
-    # Simple count of entries in the last 24 hours grouped by hour
     from datetime import datetime, timedelta
     yesterday = datetime.now() - timedelta(days=1)
     result = await db.execute(
         select(AttendanceLog.timestamp).where(AttendanceLog.timestamp >= yesterday)
     )
     from collections import Counter
-    hours = [ts.hour for ts in result.scalars().all()]
+    ts_list = result.scalars().all()
+    hours = [ts.hour for ts in ts_list]
     counts = Counter(hours)
-    # Return 24 hours
+    
     current_hour = datetime.now().hour
     data = []
-    for i in range(24):
+    for i in range(12):
         h = (current_hour - i) % 24
         data.append({"hour": f"{h}:00", "count": counts.get(h, 0)})
-    return data[::-1] # chronological
+    
+    # Add unique visitor count
+    res_unique = await db.execute(
+        select(RegisteredFace.id).where(RegisteredFace.is_active == True)
+    )
+    unique_count = len(res_unique.scalars().all())
+    
+    return {"hourly": data[::-1], "unique_captured": unique_count}
 
 @app.put("/api/users/{user_id}/rename")
 async def rename_user(user_id: int, request: RenameRequest, db: AsyncSession = Depends(get_db)):
@@ -145,23 +153,24 @@ async def register_user(request: RegisterRequest, db: AsyncSession = Depends(get
         if frame is None:
             raise HTTPException(status_code=400, detail="Invalid image data")
 
-        # Detect and get embedding
-        face_locations, face_encodings = await face_service.get_face_embeddings(frame)
-
-        if not face_encodings:
+        # Detect and get embedding using SOTA ArcFace
+        objs = face_service.extract_face(frame, enforce_liveness=False)
+        
+        if not objs:
             raise HTTPException(status_code=400, detail="No face detected in image")
         
-        if len(face_encodings) > 1:
+        if len(objs) > 1:
             raise HTTPException(status_code=400, detail="Multiple faces detected. Please provide a clear image of one face.")
 
-        encoding = face_encodings[0]
+        raw_emb = np.array(objs[0]["embedding"], dtype=np.float32)
+        encoding = face_service.l2_normalize(raw_emb).tolist()
         
         # Check if user already exists
         result = await db.execute(select(RegisteredFace).where(RegisteredFace.name == request.name))
         if result.scalars().first():
             raise HTTPException(status_code=400, detail="User already exists")
 
-        # Save to DB
+        # Save to DB as pure vector
         new_face = RegisteredFace(
             name=request.name,
             role=request.role,

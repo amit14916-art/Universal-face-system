@@ -87,7 +87,7 @@ async def save_to_db(name: str, role: str, encoding: np.ndarray):
             print(f"⚠️ '{name}' already exists! Delete first to re-register.")
             return
 
-        new_face = RegisteredFace(name=name, role=role, face_encoding=encoding)
+        new_face = RegisteredFace(name=name, role=role, face_encoding=[encoding])
         session.add(new_face)
         await session.commit()
         print(f"✅ '{name}' successfully registered in the database!")

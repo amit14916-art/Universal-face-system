@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, PickleType, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from pgvector.sqlalchemy import Vector
 from datetime import datetime
 from database import Base
 
@@ -7,10 +8,10 @@ class RegisteredFace(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    role = Column(String, default="member") # 'staff', 'vip', 'gym_member'
-    # 128-d vector yahan PickleType mein save hoga
-    face_encoding = Column(PickleType, nullable=False) 
-    image_path = Column(String, nullable=True) # Path to saved face image
+    role = Column(String, default="member")
+    # SFace vector is exactly 128 dimensions
+    face_encoding = Column(Vector(128), nullable=False) 
+    image_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     is_active = Column(Boolean, default=True)
     is_blacklisted = Column(Boolean, default=False)
@@ -20,6 +21,6 @@ class AttendanceLog(Base):
     __tablename__ = "attendance_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    face_id = Column(Integer) # RegisteredFace.id se link hoga
+    face_id = Column(Integer)
     timestamp = Column(DateTime, default=datetime.now)
     location = Column(String, default="Main Entrance")

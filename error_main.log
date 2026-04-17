@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "C:\Users\user\Downloads\universal-face-system\main.py", line 14, in <module>
+    import face_service
+  File "C:\Users\user\Downloads\universal-face-system\face_service.py", line 15, in <module>
+    from deepface import DeepFace
+ModuleNotFoundError: No module named 'deepface'
