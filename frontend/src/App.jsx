@@ -22,14 +22,20 @@ function App() {
   const fetchData = async () => {
     try {
       const baseUrl = 'http://localhost:8000';
+      const cacheBuster = `?t=${Date.now()}`;
       const [lRes, uRes, sRes] = await Promise.all([
-        fetch(`${baseUrl}/api/logs`),
-        fetch(`${baseUrl}/api/users`),
-        fetch(`${baseUrl}/api/stats/hourly`)
+        fetch(`${baseUrl}/api/logs${cacheBuster}`),
+        fetch(`${baseUrl}/api/users${cacheBuster}`),
+        fetch(`${baseUrl}/api/stats/hourly${cacheBuster}`)
       ]);
-      setLogs(await lRes.json());
-      setUsers(await uRes.json());
-      setStats(await sRes.json());
+      const logsData = await lRes.json();
+      const usersData = await uRes.json();
+      const statsData = await sRes.json();
+      
+      console.log("Syncing Cloud Data:", usersData.length, "profiles found.");
+      setLogs(logsData);
+      setUsers(usersData);
+      setStats(statsData);
     } catch (error) {
       console.error("Dashboard Sync Fail:", error);
     }
@@ -171,7 +177,9 @@ function App() {
                       </td>
                       <td style={{ padding: '1.2rem 1.5rem', textAlign: 'right' }}>
                         <div style={{ fontWeight: 800, color: 'var(--accent-color)', fontSize: '1.1rem' }}>{new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{new Date(l.timestamp).toDateString()}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          <MapPin size={12} /> {l.location || 'Sentinel Hub'}
+                        </div>
                       </td>
                     </tr>
                   ))}

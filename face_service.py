@@ -99,51 +99,66 @@ def extract_face(frame: np.ndarray, enforce_liveness=False):
     feature = face_recognizer.feature(aligned_face)
     return [{"embedding": feature[0]}]
 
-async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarray):
-    """Processes tracked face using Cloud-Native pgvector Search."""
+async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarray, location: str = "Unknown"):
+    """Processes tracked face using Cloud-Native pgvector Search with Enhanced Re-ID and Location tracking."""
     global last_visitor_created_at
     
-    # We must run YuNet inside the crop to find landmarks for alignCrop
+    # 1. Align and Extract Feature
+    # ... (same logic)
     h, w = crop_img.shape[:2]
-    detector = cv2.FaceDetectorYN.create(os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx"), "", (w, h))
+    detector = cv2.FaceDetectorYN.create(os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx"), "", (w, h), score_threshold=0.3)
     _, faces = detector.detect(crop_img)
-    if faces is None: return None, "Aligning..."
     
-    aligned_face = face_recognizer.alignCrop(crop_img, faces[0])
-    feature = face_recognizer.feature(aligned_face)
-    embedding = feature[0].tolist() # Convert to list for pgvector compatibility
+    if faces is None:
+        aligned_face = cv2.resize(crop_img, (112, 112))
+        feature = face_recognizer.feature(aligned_face)
+    else:
+        aligned_face = face_recognizer.alignCrop(crop_img, faces[0])
+        feature = face_recognizer.feature(aligned_face)
     
-    # PURE CLOUD SEARCH using pgvector L2 Distance (<->)
+    embedding = feature[0].tolist() 
+    
+    # 2. PURE CLOUD SEARCH (Re-ID Logic)
     async with AsyncSessionLocal() as session:
-        from sqlalchemy import text
-        # Threshold: 0.6 L2 distance is roughly equivalent to our 0.36 similarity
         query = select(RegisteredFace).where(
-            RegisteredFace.face_encoding.l2_distance(embedding) < 0.6,
-            RegisteredFace.is_active == True,
-            RegisteredFace.is_blacklisted == False
+            RegisteredFace.face_encoding.l2_distance(embedding) < 0.75,
+            RegisteredFace.is_active == True
         ).order_by(RegisteredFace.face_encoding.l2_distance(embedding)).limit(1)
         
         result = await session.execute(query)
         p = result.scalars().first()
         
         if p:
-            # Found match in cloud
+            if p.is_blacklisted:
+                return p.id, f"BLACKLIST: {p.name}"
+            
+            # Prevent Duplicate Logging (Cool-down: 5 minutes per person)
+            log_check = await session.execute(
+                select(AttendanceLog).where(
+                    AttendanceLog.face_id == p.id,
+                    AttendanceLog.timestamp > datetime.now().replace(minute=max(0, datetime.now().minute-5))
+                ).limit(1)
+            )
+            if not log_check.scalars().first():
+                session.add(AttendanceLog(face_id=p.id, timestamp=datetime.now(), location=location))
+                await session.commit()
+            
             return p.id, p.name
 
-
+    # 3. Quality Filtering for New Visitors
     current_time_val = time.time()
     _, _, box_w, box_h = bbox
-    h, w = full_frame.shape[:2]
+    fh, fw = full_frame.shape[:2]
     
-    # Dynamic Scaling: Must be at least 5% of the frame width
-    if box_w < w * 0.05 or box_h < h * 0.05: return None, "Too far"
-    if (current_time_val - last_visitor_created_at) < 2: return None, "Wait..."
+    if box_w < fw * 0.05 or box_h < fh * 0.05: return None, "Too far"
+    if (current_time_val - last_visitor_created_at) < 15: return None, "Wait..."
 
-    # Laplacian Variance Focus Analysis (Blur Check) - discard moving/blurry faces
+    # Blur Check
     gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
     fm = cv2.Laplacian(gray, cv2.CV_64F).var()
-    if fm < 85.0: return None, "Blurry..."
+    if fm < 90.0: return None, "Blurry..."
 
+    # 4. Create New Visitor
     v_id = int(current_time_val * 1000)
     v_name = f"Visitor_{v_id}"
     img_path = await save_face_image(v_id, crop_img)
@@ -155,7 +170,7 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
         session.add(new_person)
         await session.flush()
         
-        session.add(AttendanceLog(face_id=new_person.id, timestamp=datetime.now()))
+        session.add(AttendanceLog(face_id=new_person.id, timestamp=datetime.now(), location=location))
         await session.commit()
         last_visitor_created_at = current_time_val
         

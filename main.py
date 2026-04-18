@@ -10,6 +10,14 @@ import os
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
+import logging
+logging.basicConfig(filename='sentinel.log', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("Sentinel")
+
+def log_print(msg):
+    print(msg)
+    logger.info(msg)
+
 from database import init_db
 import face_service
 
@@ -32,84 +40,120 @@ def run_async(coro):
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
     return future.result()
 
-# --- SOTA Background Threading ---
-job_queue = queue.Queue(maxsize=10)
-track_identities = {} # map: track_id -> "Name"
+# --- Multi-Camera Sentinel Architecture ---
+shared_job_queue = queue.Queue(maxsize=20)
+display_queue = queue.Queue(maxsize=10) # Central queue for frames
+track_identities = {} # Global map: track_id -> "Name"
 
-def processing_worker():
-    """Identifies tracks in the background using DeepFace + FAISS + Liveness."""
-    while True:
-        job = job_queue.get()
-        if job is None: break
-        track_id, crop_img, bbox, full_frame = job
-        try:
-            face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame))
-            track_identities[track_id] = name
-        except Exception as e:
-            track_identities[track_id] = "Scanning..."
+class SentinelNode:
+    def __init__(self, source_id, name="Node", rotation=None):
+        self.source_id = source_id
+        self.name = name
+        self.rotation = rotation # None, cv2.ROTATE_90_CLOCKWISE, etc.
+        self.running = False
+        self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
+        self.cap = None
 
-_worker_thread = threading.Thread(target=processing_worker, daemon=True)
-_worker_thread.start()
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
 
-# Fast Native Detector for 60FPS Tracking Base
-detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
-face_detector = cv2.FaceDetectorYN.create(detector_path, "", (320, 320), score_threshold=0.6, nms_threshold=0.3, top_k=15)
+    def stop(self):
+        self.running = False
+        if self.cap: self.cap.release()
 
-def capture_loop():
-    print("Initializing Enterprise Tracker...")
-    tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
-    
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        return
+    def _run(self):
+        log_print(f"[{self.name}] Initializing Stream: {self.source_id}")
+        
+        # Retry loop for robust connection (especially for IP cameras)
+        max_retries = 5
+        for i in range(max_retries):
+            self.cap = cv2.VideoCapture(self.source_id)
+            if self.cap.isOpened():
+                log_print(f"[{self.name}] Successfully connected to stream.")
+                break
+            log_print(f"[{self.name}] Connection attempt {i+1} failed. Retrying...")
+            time.sleep(2)
 
-    print("Started Enterprise System. Press 'Q' to quit.")
+        if not self.cap or not self.cap.isOpened():
+            log_print(f"[{self.name}] Error: Permanent failure reaching source {self.source_id}")
+            return
 
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret: continue
+        # Initialize local detector for thread safety
+        detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
+        local_detector = cv2.FaceDetectorYN.create(detector_path, "", (320, 320), score_threshold=0.6, nms_threshold=0.3, top_k=15)
+
+        # Performance Optimization: Frame skipping & Resizing
+        frame_skip = 2 if "Phone" in self.name else 0 
+        frame_count = 0
+
+        while self.running:
+            ret, frame = self.cap.read()
+            if not ret: 
+                time.sleep(0.1)
+                continue
             
+            frame_count += 1
+            if frame_count % (frame_skip + 1) != 0:
+                continue
+
+            # Apply Rotation
+            if self.rotation is not None:
+                frame = cv2.rotate(frame, self.rotation)
+
             h, w = frame.shape[:2]
-            face_detector.setInputSize((w, h))
-            _, faces = face_detector.detect(frame)
+            
+            # Sub-sampling for faster detection on high-res streams
+            detect_frame = frame
+            scale = 1.0
+            if w > 800:
+                scale = 640.0 / w
+                detect_frame = cv2.resize(frame, (0,0), fx=scale, fy=scale)
+            
+            dh, dw = detect_frame.shape[:2]
+            local_detector.setInputSize((dw, dh))
+            _, faces = local_detector.detect(detect_frame)
             
             bbs = []
             if faces is not None:
                 for face in faces:
-                    box = [int(face[0]), int(face[1]), int(face[2]), int(face[3])]
+                    # Rescale boxes back to original size
+                    box = [int(face[0]/scale), int(face[1]/scale), int(face[2]/scale), int(face[3]/scale)]
                     confidence = float(face[-1])
                     bbs.append((box, confidence, 'face'))
             
-            # Update Object Tracker (Zero lag)
-            tracks = tracker.update_tracks(bbs, frame=frame)
+            # Update Object Tracker
+            tracks = self.tracker.update_tracks(bbs, frame=frame)
             
             for track in tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
                     continue
                 
                 track_id = track.track_id
+                node_track_id = f"{self.name}_{track_id}"
+                
                 ltrb = track.to_ltrb()
                 l, t, r, b = map(int, ltrb)
+                l, t, r, b = max(0, l), max(0, t), min(w, r), min(h, b)
                 
-                # Keep bounds valid
-                l = max(0, l); t = max(0, t); r = min(w, r); b = min(h, b)
+                name = track_identities.get(node_track_id, "Scanning...")
                 
-                name = track_identities.get(track_id, "Scanning...")
-                
-                # If unknown/scanning, send to background AI worker
-                if name in ["Scanning...", "Blink to Verify", "Aligning...", "Too far", "Wait...", "Blurry..."] and not job_queue.full():
-                    crop = frame[t:b, l:r].copy()
+                if name in ["Scanning...", "Blink to Verify", "Wait...", "Blurry...", "Aligning..."] and not shared_job_queue.full():
+                    margin_w = int((r - l) * 0.2)
+                    margin_h = int((b - t) * 0.2)
+                    ml, mt = max(0, l - margin_w), max(0, t - margin_h)
+                    mr, mb = min(w, r + margin_w), min(h, b + margin_h)
+                    
+                    crop = frame[mt:mb, ml:mr].copy()
                     if crop.size > 0:
-                        track_identities[track_id] = "Detecting..."
-                        job_queue.put((track_id, crop, (l, t, r-l, b-t), frame.copy()))
+                        track_identities[node_track_id] = "Detecting..."
+                        shared_job_queue.put((node_track_id, crop, (ml, mt, mr-ml, mb-mt), frame.copy(), self.name))
                 
-                # Draw Premium Sentinel Overlay
-                color = (0, 60, 255) if "Visitor" in name or "SPOOF" in name else (0, 220, 80)
-                if name == "Scanning...": color = (255, 200, 0)
+                # Visuals
+                color = (0, 60, 255) if "Visitor" in name or "BLACKLIST" in name else (0, 220, 80)
+                if "Scanning" in name: color = (255, 200, 0)
                 
-                # Sophisticated corner-only box
                 length = 20
                 cv2.line(frame, (l, t), (l + length, t), color, 2)
                 cv2.line(frame, (l, t), (l, t + length), color, 2)
@@ -120,26 +164,64 @@ def capture_loop():
                 cv2.line(frame, (r, b), (r - length, b), color, 2)
                 cv2.line(frame, (r, b), (r, b - length), color, 2)
 
-                # Glassy text plate
                 cv2.rectangle(frame, (l, b + 5), (r, b + 30), (20, 20, 20), -1)
                 cv2.rectangle(frame, (l, b + 5), (r, b + 30), color, 1)
-                cv2.putText(frame, f"ID-{track_id}: {name}", (l + 5, b + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(frame, f"{node_track_id}: {name}", (l + 5, b + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
+            # Send to Central Display Hub
+            if not display_queue.full():
+                display_queue.put((self.name, frame))
 
-            cv2.imshow("Enterprise Sentinel Node", frame)
+        self.cap.release()
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-                
-    except KeyboardInterrupt:
-        pass
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
-        job_queue.put(None)
-        _loop.call_soon_threadsafe(_loop.stop)
+def processing_worker():
+    """Shared background worker for all Sentinel nodes."""
+    while True:
+        job = shared_job_queue.get()
+        if job is None: break
+        track_id, crop_img, bbox, full_frame, location = job
+        try:
+            face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location))
+            track_identities[track_id] = name
+        except Exception as e:
+            log_print(f"Worker Error: {e}")
+            track_identities[track_id] = "Scanning..."
 
+_worker_thread = threading.Thread(target=processing_worker, daemon=True)
+_worker_thread.start()
+
+# --- Entry Point ---
 if __name__ == "__main__":
     run_async(init_db())
     run_async(face_service.load_faiss_db())
-    capture_loop()
+    
+    sources = [
+        {"id": 0, "name": "Main_Hub", "rotation": None},
+        {"id": "http://10.115.83.118:8080/video", "name": "Phone_Sentinel", "rotation": cv2.ROTATE_90_CLOCKWISE}
+    ]
+    
+    nodes = []
+    for src in sources:
+        node = SentinelNode(src["id"], src["name"], rotation=src["rotation"])
+        node.start()
+        nodes.append(node)
+
+    log_print("System Online. Use 'Q' to quit.")
+    
+    try:
+        while any(n.running for n in nodes):
+            # THE CENTRAL DISPLAY HUB (Main Thread Only)
+            while not display_queue.empty():
+                win_name, img = display_queue.get()
+                cv2.imshow(f"Sentinel: {win_name}", img)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            time.sleep(0.01)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for n in nodes: n.stop()
+        shared_job_queue.put(None)
+        _loop.call_soon_threadsafe(_loop.stop)
+        cv2.destroyAllWindows()
