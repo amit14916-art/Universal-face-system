@@ -33,17 +33,16 @@ def _start_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
 
-_loop_thread = threading.Thread(target=_start_loop, args=(_loop,), daemon=True)
-_loop_thread.start()
+_loop_thread = None
 
 def run_async(coro):
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
     return future.result()
 
 # --- Multi-Camera Sentinel Architecture ---
-shared_job_queue = queue.Queue(maxsize=20)
-display_queue = queue.Queue(maxsize=10) # Central queue for frames
+shared_job_queue = queue.Queue(maxsize=100) # Increased to handle multiple faces simultaneously
 track_identities = {} # Global map: track_id -> "Name"
+global_nodes = {} # Global registry: node_name -> node_instance
 
 class SentinelNode:
     def __init__(self, source_id, name="Node", rotation=None):
@@ -53,6 +52,9 @@ class SentinelNode:
         self.running = False
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
         self.cap = None
+        self.last_frame = None # Store the latest processed frame for streaming
+        self.fps = 0
+        self.active_tracks = 0
 
     def start(self):
         self.running = True
@@ -87,6 +89,7 @@ class SentinelNode:
         # Performance Optimization: Frame skipping & Resizing
         frame_skip = 2 if "Phone" in self.name else 0 
         frame_count = 0
+        start_time = time.time()
 
         while self.running:
             ret, frame = self.cap.read()
@@ -125,6 +128,8 @@ class SentinelNode:
             
             # Update Object Tracker
             tracks = self.tracker.update_tracks(bbs, frame=frame)
+            
+            self.active_tracks = len([t for t in tracks if t.is_confirmed()])
             
             for track in tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
@@ -168,11 +173,26 @@ class SentinelNode:
                 cv2.rectangle(frame, (l, b + 5), (r, b + 30), color, 1)
                 cv2.putText(frame, f"{node_track_id}: {name}", (l + 5, b + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-            # Send to Central Display Hub
-            if not display_queue.full():
-                display_queue.put((self.name, frame))
+            # Update FPS and Last Frame
+            self.last_frame = frame.copy()
+            elapsed = time.time() - start_time
+            if elapsed > 1:
+                self.fps = frame_count / elapsed
+                frame_count = 0
+                start_time = time.time()
 
         self.cap.release()
+
+def get_telemetry():
+    """Returns real-time performance metrics for all nodes."""
+    return {
+        name: {
+            "fps": round(node.fps, 1),
+            "active_tracks": node.active_tracks,
+            "status": "Online" if node.running else "Offline",
+            "source": str(node.source_id)
+        } for name, node in global_nodes.items()
+    }
 
 def processing_worker():
     """Shared background worker for all Sentinel nodes."""
@@ -187,41 +207,49 @@ def processing_worker():
             log_print(f"Worker Error: {e}")
             track_identities[track_id] = "Scanning..."
 
-_worker_thread = threading.Thread(target=processing_worker, daemon=True)
-_worker_thread.start()
+# Spawn a thread pool to handle up to 10 faces in parallel
+NUM_WORKERS = 10
+_worker_threads = []
+
+def start_background_workers():
+    global _loop_thread, _worker_threads
+    
+    if _loop_thread is None or not _loop_thread.is_alive():
+        _loop_thread = threading.Thread(target=_start_loop, args=(_loop,), daemon=True)
+        _loop_thread.start()
+        
+    if not _worker_threads:
+        for _ in range(NUM_WORKERS):
+            t = threading.Thread(target=processing_worker, daemon=True)
+            t.start()
+            _worker_threads.append(t)
 
 # --- Entry Point ---
 if __name__ == "__main__":
+    start_background_workers()
     run_async(init_db())
     run_async(face_service.load_faiss_db())
     
     sources = [
-        {"id": 0, "name": "Main_Hub", "rotation": None},
-        {"id": "http://10.115.83.118:8080/video", "name": "Phone_Sentinel", "rotation": cv2.ROTATE_90_CLOCKWISE}
+        {"id": 0, "name": "Main_Hub", "rotation": None}
     ]
     
-    nodes = []
     for src in sources:
         node = SentinelNode(src["id"], src["name"], rotation=src["rotation"])
         node.start()
-        nodes.append(node)
+        global_nodes[src["name"]] = node
 
-    log_print("System Online. Use 'Q' to quit.")
+    log_print("Sentinel Engine Online. MJPEG Streams ready for API connection.")
     
     try:
-        while any(n.running for n in nodes):
-            # THE CENTRAL DISPLAY HUB (Main Thread Only)
-            while not display_queue.empty():
-                win_name, img = display_queue.get()
-                cv2.imshow(f"Sentinel: {win_name}", img)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            time.sleep(0.01)
+        while any(n.running for n in global_nodes.values()):
+            # We no longer need cv2.imshow here as frames are exposed via global_nodes
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
-        for n in nodes: n.stop()
-        shared_job_queue.put(None)
+        for n in global_nodes.values(): n.stop()
+        for _ in range(NUM_WORKERS):
+            shared_job_queue.put(None)
         _loop.call_soon_threadsafe(_loop.stop)
-        cv2.destroyAllWindows()
+

@@ -30,18 +30,4 @@ if __name__ == "__main__":
     print("Press Ctrl+C to stop everything")
     print("----------------------------------------")
 
-    p1 = multiprocessing.Process(target=run_api)
-    p2 = multiprocessing.Process(target=run_recognition)
-
-    p1.start()
-    time.sleep(2) # Give API time to start
-    p2.start()
-
-    try:
-        p1.join()
-        p2.join()
-    except KeyboardInterrupt:
-        print("\nStopping system...")
-        p1.terminate()
-        p2.terminate()
-        print("System stopped.")
+    run_api()

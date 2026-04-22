@@ -1,15 +1,18 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import uvicorn
+import asyncio
+import time
 
 from database import AsyncSessionLocal, init_db
 from models import RegisteredFace, AttendanceLog
 import face_service
+import main as engine # Integrated with the Sentinel Engine
 import base64
 import numpy as np
 import cv2
@@ -26,12 +29,16 @@ class RenameRequest(BaseModel):
 class BlacklistRequest(BaseModel):
     is_blacklisted: bool
 
+class NodeRequest(BaseModel):
+    name: str
+    url: str
+
 app = FastAPI(title="Universal Face System API")
 
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,6 +52,63 @@ async def get_db():
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+    
+    # Initialize Sentinel Engine inside API process for shared memory
+    engine.start_background_workers()
+    
+    sources = [
+        {"id": 0, "name": "Main_Hub", "rotation": None}
+    ]
+    
+    for src in sources:
+        node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
+        node.start()
+        engine.global_nodes[src["name"]] = node
+    
+    print(">> Sentinel Engine Integrated & Online")
+
+# --- LIVE STREAMING CORE ---
+def gen_frames(node_name: str):
+    """MJPEG frame generator for a specific Sentinel node."""
+    while True:
+        if node_name in engine.global_nodes:
+            node = engine.global_nodes[node_name]
+            frame = node.last_frame
+            if frame is not None:
+                ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                if ret:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        time.sleep(0.04) # ~25 FPS max
+
+@app.get("/api/stream/{node_name}")
+async def stream_node(node_name: str):
+    if node_name not in engine.global_nodes:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return StreamingResponse(gen_frames(node_name), media_type='multipart/x-mixed-replace; boundary=frame')
+
+@app.get("/api/telemetry")
+async def get_system_telemetry():
+    return engine.get_telemetry()
+
+@app.post("/api/nodes/add")
+async def add_node(request: NodeRequest):
+    if request.name in engine.global_nodes:
+        engine.global_nodes[request.name].stop()
+        
+    try:
+        url = int(request.url) if request.url.isdigit() else request.url
+        if isinstance(url, str) and url.startswith("http"):
+            # Auto-append /video if user forgets it for IP Webcam
+            if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
+                url = url.rstrip('/') + '/video'
+
+        node = engine.SentinelNode(url, request.name, rotation=None)
+        node.start()
+        engine.global_nodes[request.name] = node
+        return {"message": f"Node {request.name} added successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -56,47 +120,62 @@ async def root():
     return FileResponse("frontend/dist/index.html")
 
 @app.get("/api/users")
-async def get_users(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RegisteredFace))
-    users = result.scalars().all()
-    # Exclude binary encoding from JSON response
-    return [
-        {
-            "id": u.id,
-            "name": u.name,
-            "role": u.role,
-            "image_path": u.image_path,
-            "is_blacklisted": u.is_blacklisted,
-            "notes": u.notes,
-            "created_at": u.created_at,
-            "is_active": u.is_active
-        } for u in users
-    ]
+async def get_users():
+    from database import AsyncSessionLocal
+    from sqlalchemy.exc import DBAPIError
+    import asyncio
+    for attempt in range(3):
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(RegisteredFace))
+                users = result.scalars().all()
+                return [
+                    {
+                        "id": u.id,
+                        "name": u.name,
+                        "role": u.role,
+                        "image_path": u.image_path,
+                        "is_blacklisted": u.is_blacklisted,
+                        "notes": u.notes,
+                        "created_at": u.created_at,
+                        "is_active": u.is_active
+                    } for u in users
+                ]
+        except DBAPIError:
+            if attempt == 2: raise
+            await asyncio.sleep(0.5)
 
 @app.get("/api/logs")
-async def get_logs(db: AsyncSession = Depends(get_db), limit: int = 50):
-    # Join with RegisteredFace to get names
+async def get_logs(limit: int = 50):
     query = (
         select(AttendanceLog, RegisteredFace.name, RegisteredFace.role, RegisteredFace.image_path)
         .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
         .order_by(AttendanceLog.timestamp.desc())
         .limit(limit)
     )
-    result = await db.execute(query)
-    logs = []
-    for row in result.all():
-        log, name, role, img_path = row
-        # Also check if they are blacklisted now
-        logs.append({
-            "id": log.id,
-            "face_id": log.face_id,
-            "name": name,
-            "role": role,
-            "image_path": img_path,
-            "timestamp": log.timestamp,
-            "location": log.location
-        })
-    return logs
+    from database import AsyncSessionLocal
+    from sqlalchemy.exc import DBAPIError
+    import asyncio
+    for attempt in range(3):
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(query)
+                logs = []
+                for row in result.all():
+                    log, name, role, img_path = row
+                    logs.append({
+                        "id": log.id,
+                        "face_id": log.face_id,
+                        "name": name,
+                        "role": role,
+                        "image_path": img_path,
+                        "timestamp": log.timestamp,
+                        "location": log.location
+                    })
+                return logs
+        except DBAPIError:
+            if attempt == 2: raise
+            await asyncio.sleep(0.5)
 
 @app.get("/api/stats/hourly")
 async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
@@ -125,13 +204,22 @@ async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
     return {"hourly": data[::-1], "unique_captured": unique_count}
 
 @app.put("/api/users/{user_id}/rename")
-async def rename_user(user_id: int, request: RenameRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == user_id))
-    user = result.scalars().first()
-    if not user: raise HTTPException(status_code=404, detail="User not found")
-    user.name = request.name
-    await db.commit()
-    return {"message": "User renamed successfully"}
+async def rename_user(user_id: int, request: RenameRequest):
+    from database import AsyncSessionLocal
+    from sqlalchemy.exc import DBAPIError
+    import asyncio
+    for attempt in range(3):
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == user_id))
+                user = result.scalars().first()
+                if not user: raise HTTPException(status_code=404, detail="User not found")
+                user.name = request.name
+                await db.commit()
+                return {"message": "User renamed successfully"}
+        except DBAPIError:
+            if attempt == 2: raise
+            await asyncio.sleep(0.5)
 
 @app.put("/api/users/{user_id}/blacklist")
 async def toggle_blacklist(user_id: int, request: BlacklistRequest, db: AsyncSession = Depends(get_db)):
@@ -198,3 +286,4 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
