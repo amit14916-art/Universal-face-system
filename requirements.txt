@@ -11,4 +11,5 @@ aiosqlite
 pgvector
 deep-sort-realtime
 mediapipe
+scipy
 google-cloud-vision
