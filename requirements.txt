@@ -7,4 +7,5 @@ uvicorn
 sqlalchemy[asyncio]
 psycopg2-binary
 asyncpg
+aiosqlite
 google-cloud-vision
