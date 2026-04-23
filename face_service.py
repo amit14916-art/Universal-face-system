@@ -7,7 +7,16 @@ from dotenv import load_dotenv
 
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
-import mediapipe.solutions.face_mesh as mp_face_mesh
+try:
+    import mediapipe.solutions.face_mesh as mp_face_mesh
+except (ImportError, ModuleNotFoundError):
+    try:
+        from mediapipe.python.solutions import face_mesh as mp_face_mesh
+    except:
+        # Fallback for dynamic loading
+        import mediapipe as mp
+        mp_face_mesh = mp.solutions.face_mesh
+
 
 from database import DATABASE_URL, connect_args
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession

@@ -9,7 +9,6 @@ asyncpg
 aiosqlite
 pgvector
 deep-sort-realtime
-mediapipe==0.10.9
+mediapipe
 scipy
 google-cloud-vision
-protobuf==3.20.3
