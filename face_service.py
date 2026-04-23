@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
-from mediapipe.python.solutions import face_mesh as mp_face_mesh
+import mediapipe.solutions.face_mesh as mp_face_mesh
 
 from database import DATABASE_URL, connect_args
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession

@@ -1,5 +1,5 @@
 face_recognition==1.3.0
-opencv-python
+opencv-python-headless
 numpy==1.26.4
 python-dotenv
 fastapi
@@ -10,6 +10,6 @@ asyncpg
 aiosqlite
 pgvector
 deep-sort-realtime
-mediapipe
+mediapipe==0.10.9
 scipy
 google-cloud-vision
