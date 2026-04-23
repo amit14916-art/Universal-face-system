@@ -8,4 +8,7 @@ sqlalchemy[asyncio]
 psycopg2-binary
 asyncpg
 aiosqlite
+pgvector
+deep-sort-realtime
+mediapipe
 google-cloud-vision
