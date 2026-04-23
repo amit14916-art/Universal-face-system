@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
-import mediapipe as mp
+from mediapipe.python.solutions import face_mesh as mp_face_mesh
 
 from database import DATABASE_URL, connect_args
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -42,7 +42,6 @@ DIMENSION = 128
 last_visitor_created_at = 0
 
 # Mediapipe Liveness (Blink Detection)
-mp_face_mesh = mp.solutions.face_mesh
 face_mesh_liveness = mp_face_mesh.FaceMesh(
     max_num_faces=1,
     refine_landmarks=True,
