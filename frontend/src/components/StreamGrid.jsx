@@ -1,6 +1,8 @@
 import React from 'react';
 import { Camera, Activity, Maximize2 } from 'lucide-react';
 
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
+
 const StreamGrid = ({ telemetry }) => {
   const nodes = Object.keys(telemetry || {});
 
@@ -37,7 +39,7 @@ const StreamGrid = ({ telemetry }) => {
 
           {/* Actual Stream */}
           <img 
-            src={`http://localhost:8000/api/stream/${nodeName}`} 
+            src={`${API_BASE}/api/stream/${nodeName}`} 
             alt={nodeName}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             onError={(e) => {

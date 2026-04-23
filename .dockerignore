@@ -1,0 +1,10 @@
+venv/
+venv311/
+__pycache__/
+*.db
+.env
+.git/
+scratch/
+frontend/node_modules/
+error*.log
+sentinel.log

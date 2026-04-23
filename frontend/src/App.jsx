@@ -18,6 +18,8 @@ const ScannerIcon = ({ size = 24, className = "" }) => (
   </svg>
 );
 
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -43,7 +45,7 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const baseUrl = 'http://localhost:8000';
+      const baseUrl = API_BASE;
       const cacheBuster = `?t=${Date.now()}`;
       const [lRes, uRes, tRes] = await Promise.all([
         fetch(`${baseUrl}/api/logs${cacheBuster}`),
@@ -60,7 +62,7 @@ function App() {
   };
 
   const toggleBlacklist = async (id, status) => {
-    await fetch(`http://localhost:8000/api/users/${id}/blacklist`, {
+    await fetch(`${API_BASE}/api/users/${id}/blacklist`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_blacklisted: status })
@@ -71,7 +73,7 @@ function App() {
   const handleRename = async () => {
     if (!editingUser || !newName.trim()) return;
     try {
-      await fetch(`http://localhost:8000/api/users/${editingUser.id}/rename`, {
+      await fetch(`${API_BASE}/api/users/${editingUser.id}/rename`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName })
@@ -87,7 +89,7 @@ function App() {
 
   const deleteUser = async (id) => {
     if (confirm("Permanently delete this biometric profile?")) {
-      await fetch(`http://localhost:8000/api/users/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/users/${id}`, { method: 'DELETE' });
       fetchData();
     }
   };
@@ -115,7 +117,7 @@ function App() {
     canvas.height = videoRef.current.videoHeight;
     canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
     
-    await fetch('http://localhost:8000/api/register', {
+    await fetch(`${API_BASE}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -131,7 +133,7 @@ function App() {
 
   const handleLogin = async () => {
     try {
-      await fetch('http://localhost:8000/api/nodes/add', {
+      await fetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: "Gym_Camera", url: cameraUrl || "0" })
@@ -267,7 +269,7 @@ function App() {
                                <div key={u.id} className="glass-panel p-4 flex items-center justify-between border-white/5 hover:border-blue-600/30 transition-all bg-white/[0.015] rounded-[24px] group">
                                   <div className="flex items-center gap-4 text-left">
                                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5 relative shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                        <img src={`http://localhost:8000/${u.image_path}`} className="w-full h-full object-cover" alt="" />
+                                        <img src={`${API_BASE}/${u.image_path}`} className="w-full h-full object-cover" alt="" />
                                         {u.is_blacklisted && <div className="absolute inset-0 bg-red-600/40 backdrop-blur-[1px] flex items-center justify-center"><ShieldOff size={20} className="text-white" /></div>}
                                      </div>
                                      <div className="flex flex-col">
@@ -288,7 +290,7 @@ function App() {
                                <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group animate-in slide-in-from-bottom-2 duration-500">
                                   <div className="flex items-center gap-6 text-left">
                                      <div className="w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5 shadow-2xl shrink-0 group-hover:border-blue-600/20 transition-all duration-500">
-                                        <img src={`http://localhost:8000/${l.image_path}`} className="w-full h-full object-cover" alt="" />
+                                        <img src={`${API_BASE}/${l.image_path}`} className="w-full h-full object-cover" alt="" />
                                      </div>
                                      <div>
                                         <div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div>

@@ -117,45 +117,66 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
     """Processes tracked face using Cloud-Native pgvector Search with Enhanced Re-ID and Location tracking."""
     global last_visitor_created_at
     
+    # 0. Early Quality Filtering (Before doing expensive math)
+    _, _, box_w, box_h = bbox
+    fh, fw = full_frame.shape[:2]
+    
+    # Reject tiny faces (less than 5% of screen width)
+    if box_w < fw * 0.05 or box_h < fh * 0.05: 
+        return None, "Too far"
+
+    # Reject heavily blurred faces
+    gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
+    fm = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if fm < 40.0: 
+        return None, "Blurry..."
+
     # 1. Align and Extract Feature
-    # ... (same logic)
     h, w = crop_img.shape[:2]
     
-    # Thread-safe model caching to prevent massive CPU/Memory spikes
     import threading
     if not hasattr(threading.current_thread(), "face_detector"):
         threading.current_thread().face_detector = cv2.FaceDetectorYN.create(
             os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx"), "", (w, h), score_threshold=0.3
         )
     detector = threading.current_thread().face_detector
-    detector.setInputSize((w, h)) # Update size for this specific crop
+    detector.setInputSize((w, h))
     
     _, faces = detector.detect(crop_img)
     
     if faces is None:
-        aligned_face = cv2.resize(crop_img, (112, 112))
-        feature = face_recognizer.feature(aligned_face)
-    else:
-        aligned_face = face_recognizer.alignCrop(crop_img, faces[0])
-        feature = face_recognizer.feature(aligned_face)
+        # DO NOT process unaligned faces, they will ruin accuracy!
+        return None, "Aligning..."
+        
+    aligned_face = face_recognizer.alignCrop(crop_img, faces[0])
+    feature = face_recognizer.feature(aligned_face)
     
     raw_emb = np.array(feature[0], dtype=np.float32)
     embedding = l2_normalize(raw_emb).tolist() 
     
-    # 2. PURE CLOUD SEARCH (Re-ID Logic)
+        # 2. PURE CLOUD SEARCH (Re-ID Logic)
     async with AsyncSessionLocalBG() as session:
         query = select(RegisteredFace).where(
-            RegisteredFace.face_encoding.l2_distance(embedding) < 1.128,
+            RegisteredFace.face_encoding.l2_distance(embedding) < 1.40,
             RegisteredFace.is_active == True
         ).order_by(RegisteredFace.face_encoding.l2_distance(embedding)).limit(1)
         
         result = await session.execute(query)
         p = result.scalars().first()
         
+        # In-Memory Cache to prevent Cloud DB spam for the exact same person
+        if not hasattr(process_tracker_crop, "local_cache"):
+            process_tracker_crop.local_cache = {}
+
         if p:
             if p.is_blacklisted:
                 return p.id, f"BLACKLIST: {p.name}"
             
+            current_time = time.time()
+            if p.id in process_tracker_crop.local_cache and (current_time - process_tracker_crop.local_cache[p.id]) < 86400:
+                # Already logged in the last 24 hours, skip database hit!
+                return p.id, p.name
+
             # Prevent Duplicate Logging (Cool-down: 24 hours per person)
             log_check = await session.execute(
                 select(AttendanceLog).where(
@@ -167,20 +188,13 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
                 session.add(AttendanceLog(face_id=p.id, timestamp=datetime.now(), location=location))
                 await session.commit()
             
+            process_tracker_crop.local_cache[p.id] = current_time
             return p.id, p.name
 
-    # 3. Quality Filtering for New Visitors
+    # 3. Create New Visitor (If face is good quality but unknown)
     current_time_val = time.time()
-    _, _, box_w, box_h = bbox
-    fh, fw = full_frame.shape[:2]
-    
-    if box_w < fw * 0.05 or box_h < fh * 0.05: return None, "Too far"
-    if (current_time_val - last_visitor_created_at) < 15: return None, "Wait..."
-
-    # Blur Check
-    gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
-    fm = cv2.Laplacian(gray, cv2.CV_64F).var()
-    if fm < 90.0: return None, "Blurry..."
+    if (current_time_val - last_visitor_created_at) < 15: 
+        return None, "Wait..."
 
     # 4. Create New Visitor
     v_id = int(current_time_val * 1000)

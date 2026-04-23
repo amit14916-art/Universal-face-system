@@ -91,11 +91,22 @@ class SentinelNode:
         frame_count = 0
         start_time = time.time()
 
+        failed_frames = 0
         while self.running:
             ret, frame = self.cap.read()
             if not ret: 
-                time.sleep(0.1)
+                failed_frames += 1
+                if failed_frames > 50: # ~5 seconds of dropped frames
+                    log_print(f"[{self.name}] Connection lost. Attempting auto-reconnect...")
+                    self.cap.release()
+                    time.sleep(2)
+                    self.cap = cv2.VideoCapture(self.source_id)
+                    failed_frames = 0
+                else:
+                    time.sleep(0.1)
                 continue
+            
+            failed_frames = 0
             
             frame_count += 1
             if frame_count % (frame_skip + 1) != 0:
@@ -243,11 +254,18 @@ if __name__ == "__main__":
     
     try:
         while any(n.running for n in global_nodes.values()):
-            # We no longer need cv2.imshow here as frames are exposed via global_nodes
-            time.sleep(1)
+            # Display local OpenCV windows for each active node
+            for name, node in global_nodes.items():
+                if node.last_frame is not None:
+                    cv2.imshow(f"Sentinel AI: {name}", node.last_frame)
+                    
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            time.sleep(0.03)
     except KeyboardInterrupt:
         pass
     finally:
+        cv2.destroyAllWindows()
         for n in global_nodes.values(): n.stop()
         for _ in range(NUM_WORKERS):
             shared_job_queue.put(None)

@@ -1,3 +1,5 @@
+import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -33,24 +35,12 @@ class NodeRequest(BaseModel):
     name: str
     url: str
 
-app = FastAPI(title="Universal Face System API")
-
-# Enable CORS for frontend integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Dependency to get DB session
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure static directories exist to prevent deployment crashes
+    os.makedirs("static/faces", exist_ok=True)
+    os.makedirs("frontend/dist/assets", exist_ok=True)
+    
     await init_db()
     
     # Initialize Sentinel Engine inside API process for shared memory
@@ -66,6 +56,32 @@ async def startup_event():
         engine.global_nodes[src["name"]] = node
     
     print(">> Sentinel Engine Integrated & Online")
+    yield
+    # Clean shutdown
+    for node_name, node in engine.global_nodes.items():
+        node.stop()
+
+app = FastAPI(title="Universal Face System API", lifespan=lifespan)
+
+# Enable CORS for frontend integration
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:8000").split(",")
+origins = [o.strip() for o in origins if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Dependency to get DB session safely
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
 # --- LIVE STREAMING CORE ---
 def gen_frames(node_name: str):
@@ -120,62 +136,45 @@ async def root():
     return FileResponse("frontend/dist/index.html")
 
 @app.get("/api/users")
-async def get_users():
-    from database import AsyncSessionLocal
-    from sqlalchemy.exc import DBAPIError
-    import asyncio
-    for attempt in range(3):
-        try:
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(select(RegisteredFace))
-                users = result.scalars().all()
-                return [
-                    {
-                        "id": u.id,
-                        "name": u.name,
-                        "role": u.role,
-                        "image_path": u.image_path,
-                        "is_blacklisted": u.is_blacklisted,
-                        "notes": u.notes,
-                        "created_at": u.created_at,
-                        "is_active": u.is_active
-                    } for u in users
-                ]
-        except DBAPIError:
-            if attempt == 2: raise
-            await asyncio.sleep(0.5)
+async def get_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RegisteredFace))
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "role": u.role,
+            "image_path": u.image_path,
+            "is_blacklisted": u.is_blacklisted,
+            "notes": u.notes,
+            "created_at": u.created_at,
+            "is_active": u.is_active
+        } for u in users
+    ]
 
 @app.get("/api/logs")
-async def get_logs(limit: int = 50):
+async def get_logs(limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
     query = (
         select(AttendanceLog, RegisteredFace.name, RegisteredFace.role, RegisteredFace.image_path)
         .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
         .order_by(AttendanceLog.timestamp.desc())
         .limit(limit)
+        .offset(offset)
     )
-    from database import AsyncSessionLocal
-    from sqlalchemy.exc import DBAPIError
-    import asyncio
-    for attempt in range(3):
-        try:
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(query)
-                logs = []
-                for row in result.all():
-                    log, name, role, img_path = row
-                    logs.append({
-                        "id": log.id,
-                        "face_id": log.face_id,
-                        "name": name,
-                        "role": role,
-                        "image_path": img_path,
-                        "timestamp": log.timestamp,
-                        "location": log.location
-                    })
-                return logs
-        except DBAPIError:
-            if attempt == 2: raise
-            await asyncio.sleep(0.5)
+    result = await db.execute(query)
+    logs = []
+    for row in result.all():
+        log, name, role, img_path = row
+        logs.append({
+            "id": log.id,
+            "face_id": log.face_id,
+            "name": name,
+            "role": role,
+            "image_path": img_path,
+            "timestamp": log.timestamp,
+            "location": log.location
+        })
+    return logs
 
 @app.get("/api/stats/hourly")
 async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
@@ -204,22 +203,13 @@ async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
     return {"hourly": data[::-1], "unique_captured": unique_count}
 
 @app.put("/api/users/{user_id}/rename")
-async def rename_user(user_id: int, request: RenameRequest):
-    from database import AsyncSessionLocal
-    from sqlalchemy.exc import DBAPIError
-    import asyncio
-    for attempt in range(3):
-        try:
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == user_id))
-                user = result.scalars().first()
-                if not user: raise HTTPException(status_code=404, detail="User not found")
-                user.name = request.name
-                await db.commit()
-                return {"message": "User renamed successfully"}
-        except DBAPIError:
-            if attempt == 2: raise
-            await asyncio.sleep(0.5)
+async def rename_user(user_id: int, request: RenameRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == user_id))
+    user = result.scalars().first()
+    if not user: raise HTTPException(status_code=404, detail="User not found")
+    user.name = request.name
+    await db.commit()
+    return {"message": "User renamed successfully"}
 
 @app.put("/api/users/{user_id}/blacklist")
 async def toggle_blacklist(user_id: int, request: BlacklistRequest, db: AsyncSession = Depends(get_db)):
