@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./faces.db")
+print(f"DEBUG: Initializing database with {'PostgreSQL' if 'postgres' in DATABASE_URL else 'SQLite'}")
+
 
 Base = declarative_base()
 
