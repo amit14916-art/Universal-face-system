@@ -1,24 +1,37 @@
-FROM python:3.11-slim
+# Stage 1: Build Frontend
+FROM node:18-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
+# Stage 2: Final Image
+FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies for OpenCV and dlib (Face Recognition)
 RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
+    python3-dev \
     libgl1 \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies
+# Copy requirements and install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy backend code
 COPY . .
 
-# Expose the port FastAPI runs on
+# Copy built frontend from Stage 1
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
 EXPOSE 8000
 
-# Command to run the application
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
