@@ -12,6 +12,12 @@ import asyncio
 import time
 
 from database import AsyncSessionLocal, init_db
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from models import RegisteredFace, AttendanceLog
 import face_service
 import main as engine # Integrated with the Sentinel Engine
@@ -42,9 +48,10 @@ async def lifespan(app: FastAPI):
     os.makedirs("static/faces", exist_ok=True)
     os.makedirs("frontend/dist/assets", exist_ok=True)
     
-    print("SYSTEM: Initializing Database Connection...")
+    logger.info("SYSTEM: Initializing Database Connection...")
     await init_db()
-    print("SYSTEM: Database Connection Established")
+    logger.info("SYSTEM: Database Connection Established")
+
 
     
     # Initialize Sentinel Engine inside API process for shared memory
