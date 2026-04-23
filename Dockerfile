@@ -7,20 +7,21 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Final Image
-FROM python:3.11-slim
+FROM python:3.11-bullseye
 WORKDIR /app
 
-# Install system dependencies for OpenCV and dlib (Face Recognition)
+# Install system dependencies for OpenCV, Mediapipe and SFace
 RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
     python3-dev \
-    libgl1 \
+    libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Copy requirements and install python dependencies
 COPY requirements.txt .

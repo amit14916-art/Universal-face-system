@@ -9,6 +9,6 @@ asyncpg
 aiosqlite
 pgvector
 deep-sort-realtime
-mediapipe
+mediapipe==0.10.11
 scipy
 google-cloud-vision
