@@ -46,4 +46,5 @@ async def init_db():
             await conn.run_sync(Base.metadata.create_all)
         print("OK: Securely Connected to Enterprise Database")
     except Exception as e:
-        print("Database sync handled by parallel process.")
+        print(f"DATABASE ERROR: {str(e)}")
+
