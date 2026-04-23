@@ -25,6 +25,7 @@ class RegisterRequest(BaseModel):
     role: str
     image_base64: str
 
+
 class RenameRequest(BaseModel):
     name: str
 
@@ -41,7 +42,10 @@ async def lifespan(app: FastAPI):
     os.makedirs("static/faces", exist_ok=True)
     os.makedirs("frontend/dist/assets", exist_ok=True)
     
+    print("SYSTEM: Initializing Database Connection...")
     await init_db()
+    print("SYSTEM: Database Connection Established")
+
     
     # Initialize Sentinel Engine inside API process for shared memory
     engine.start_background_workers()

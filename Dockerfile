@@ -9,6 +9,8 @@ RUN npm run build
 # Stage 2: Final Image
 FROM python:3.11-bullseye
 WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+
 
 # Install system dependencies for OpenCV, Mediapipe and SFace
 RUN apt-get update && apt-get install -y \
