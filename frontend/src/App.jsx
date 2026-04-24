@@ -94,41 +94,47 @@ function App() {
     }
   };
 
-  const openWebcam = async () => {
+  const openWebcam = () => {
     setIsRegisterOpen(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch (e) {
-      console.error("Webcam Error:", e);
-    }
+    // No longer using local navigator.mediaDevices
   };
 
   const closeWebcam = () => {
     setIsRegisterOpen(false);
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-    }
   };
 
   const captureAndRegister = async () => {
+    const streamImg = document.getElementById('sentinel-enroll-stream');
+    if (!streamImg) return;
+
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+    canvas.width = streamImg.naturalWidth || 640;
+    canvas.height = streamImg.naturalHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(streamImg, 0, 0);
     
-    await fetch(`${API_BASE}/api/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: regName,
-        role: regRole,
-        image_base64: canvas.toDataURL('image/jpeg')
-      })
-    });
-    closeWebcam();
-    setRegName('');
-    fetchData();
+    try {
+      const res = await fetch(`${API_BASE}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: regName,
+          role: regRole,
+          image_base64: canvas.toDataURL('image/jpeg')
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("Enrollment Successful!");
+        closeWebcam();
+        setRegName('');
+        fetchData();
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch (e) {
+      alert("Registration failed: " + e.message);
+    }
   };
 
   const handleLogin = async () => {
@@ -388,13 +394,20 @@ function App() {
 
              <div className="lg:w-[450px] shrink-0 bg-black relative p-12 flex items-center justify-center">
                 <div className="w-full h-full rounded-[48px] overflow-hidden relative border-4 border-white/10 shadow-[0_0_80px_rgba(59,130,246,0.2)]">
-                   <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] grayscale-[0.2]" />
+                   <img 
+                     id="sentinel-enroll-stream"
+                     src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} 
+                     className="w-full h-full object-cover" 
+                     alt="Remote Stream"
+                     crossOrigin="anonymous"
+                     onError={(e) => { e.target.src = "https://via.placeholder.com/640x480?text=Camera+Offline"; }}
+                   />
                    <div className="scanner-overlay !z-10 bg-blue-900/10">
                       <div className="scanner-line !h-[6px] !bg-blue-400 !shadow-[0_0_30px_#3b82f6]"></div>
                       <div className="face-target !border-blue-500/30 !w-[280px] !h-[380px] !border-[3px] !rounded-[80px]"></div>
                       <div className="absolute top-8 left-8 flex items-center gap-4 bg-black/80 px-5 py-2 rounded-2xl backdrop-blur-3xl border border-white/10">
-                          <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_#dc2626]" />
-                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">Scanning...</span>
+                          <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_15px_#10b981]" />
+                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">Phone Link Active</span>
                       </div>
                    </div>
                 </div>

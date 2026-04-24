@@ -128,7 +128,9 @@ async def get_system_telemetry():
 @app.post("/api/nodes/add")
 async def add_node(request: NodeRequest):
     if request.name in engine.global_nodes:
+        logger.info(f"Stopping existing node: {request.name}")
         engine.global_nodes[request.name].stop()
+        await asyncio.sleep(1) # Give it a second to release the camera
         
     try:
         url = int(request.url) if request.url.isdigit() else request.url
