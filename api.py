@@ -25,6 +25,13 @@ import base64
 import numpy as np
 import cv2
 from pydantic import BaseModel
+from supabase import create_client, Client
+
+# Supabase Storage Setup
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+BUCKET_NAME = "face"
 
 class RegisterRequest(BaseModel):
     name: str
@@ -267,8 +274,41 @@ async def register_user(request: RegisterRequest, db: AsyncSession = Depends(get
         )
         db.add(new_face)
         await db.commit()
+        await db.refresh(new_face)
+
+        # Cloud Storage Upload (Supabase Bucket)
+        filename = f"{int(time.time())}_{new_face.id}.jpg"
+        file_path = f"registration/{filename}"
         
-        return {"message": f"Successfully registered {request.name}", "status": "success"}
+        # Convert frame to bytes for upload
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        img_bytes = img_encoded.tobytes()
+
+        try:
+            # Upload to Supabase 'face' bucket
+            supabase.storage.from_(BUCKET_NAME).upload(
+                path=file_path,
+                file=img_bytes,
+                file_options={"content-type": "image/jpeg"}
+            )
+            
+            # Get Public URL
+            public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(file_path)
+            
+            # Update user record with the Cloud URL
+            new_face.image_path = public_url
+            await db.commit()
+            logger.info(f"Photo uploaded to cloud: {public_url}")
+            
+        except Exception as storage_err:
+            logger.error(f"Cloud Storage Error: {storage_err}")
+            # Fallback to local if cloud fails (optional)
+            local_path = f"static/faces/{filename}"
+            cv2.imwrite(local_path, frame)
+            new_face.image_path = local_path
+            await db.commit()
+        
+        return {"message": f"Successfully registered {request.name}", "status": "success", "image_url": new_face.image_path}
 
     except Exception as e:
         print(f"Registration Error: {e}")
