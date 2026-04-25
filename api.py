@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 
     
     # Initialize Sentinel Engine inside API process for shared memory
-    # engine.start_background_workers()
+    engine.start_background_workers()
     
     # Skip starting local camera by default on cloud environment
     # sources = [
@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     for node_name, node in engine.global_nodes.items():
         node.stop()
 
-app = FastAPI(title="Universal Face System API")
+app = FastAPI(title="Universal Face System API", lifespan=lifespan)
 
 @app.get("/health")
 async def health_check():

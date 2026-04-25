@@ -1,7 +1,11 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
+import asyncio
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -44,14 +48,14 @@ AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=F
 async def init_db():
     if "postgres" in DATABASE_URL:
         # Initialize pgvector extension safely for Supabase
-        # import asyncpg
-        # try:
-        #     raw_url = DATABASE_URL.replace("+asyncpg", "")
-        #     conn = await asyncpg.connect(raw_url)
-        #     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        #     await conn.close()
-        # except Exception as e:
-        #     pass
+        import asyncpg
+        try:
+            raw_url = DATABASE_URL.replace("+asyncpg", "")
+            conn = await asyncio.wait_for(asyncpg.connect(raw_url), timeout=10)
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            await conn.close()
+        except Exception as e:
+            logger.info(f"Extension Setup skipped: {e}")
             
     try:
         async with engine.begin() as conn:
