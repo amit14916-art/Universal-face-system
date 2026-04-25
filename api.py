@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 
     
     # Initialize Sentinel Engine inside API process for shared memory
-    engine.start_background_workers()
+    # engine.start_background_workers()
     
     # Skip starting local camera by default on cloud environment
     # sources = [
