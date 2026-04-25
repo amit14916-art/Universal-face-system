@@ -696,7 +696,8 @@ function App() {
                                </div>
                             ))}
                          </div>
-                      ) : activeTab === 'settings' ? (
+                      </div>
+                    ) : activeTab === 'settings' ? (
                          <div className="p-8 space-y-12 max-w-2xl">
                             <div className="space-y-4">
                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2">IP CAMERA LINK (HTTP/RTSP)</label>
