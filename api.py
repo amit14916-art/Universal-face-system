@@ -76,14 +76,15 @@ async def lifespan(app: FastAPI):
     # Initialize Sentinel Engine inside API process for shared memory
     engine.start_background_workers()
     
-    sources = [
-        {"id": 0, "name": "Main_Hub", "rotation": None}
-    ]
-    
-    for src in sources:
-        node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
-        node.start()
-        engine.global_nodes[src["name"]] = node
+    # Skip starting local camera by default on cloud environment
+    # sources = [
+    #     {"id": 0, "name": "Main_Hub", "rotation": None}
+    # ]
+    # 
+    # for src in sources:
+    #     node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
+    #     node.start()
+    #     engine.global_nodes[src["name"]] = node
     
     print(">> Sentinel Engine Integrated & Online")
     yield

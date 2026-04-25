@@ -39,6 +39,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [gymName, setGymName] = useState('');
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
@@ -198,7 +199,8 @@ function App() {
   };
 
   const handleSignup = async () => {
-    if (!gymName || !email || !mobile || !password) return alert("Please fill all fields");
+    if (!gymName || !email || !mobile || !password || !confirmPassword) return alert("Please fill all fields");
+    if (password !== confirmPassword) return alert("Passwords do not match!");
     try {
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
@@ -304,6 +306,22 @@ function App() {
                     />
                   </div>
                 </div>
+
+                {authMode === 'signup' && (
+                  <div className="space-y-3 animate-in slide-in-from-top-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">CONFIRM PASSWORD</span>
+                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                      <Lock className="text-slate-600 flex-shrink-0" size={18} />
+                      <input 
+                        type="password" 
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••" 
+                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                      />
+                    </div>
+                  </div>
+                )}
             </div>
 
             <button 
