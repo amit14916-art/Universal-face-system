@@ -51,13 +51,8 @@ DIMENSION = 128
 # FAISS is now retired. We use Pure Cloud pgvector Search.
 last_visitor_created_at = 0
 
-# Mediapipe Liveness (Blink Detection)
-face_mesh_liveness = mp_face_mesh.FaceMesh(
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
+# Mediapipe Liveness (Blink Detection) - Initialized on first use
+face_mesh_liveness = None
 last_blink_time = 0
 LIVENESS_WINDOW = 5.0
 
@@ -76,7 +71,16 @@ def calculate_ear(eye_landmarks):
     return (v1 + v2) / (2.0 * h)
 
 def check_liveness(frame: np.ndarray) -> bool:
-    global last_blink_time
+    global last_blink_time, face_mesh_liveness
+    
+    if face_mesh_liveness is None:
+        face_mesh_liveness = mp_face_mesh.FaceMesh(
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
+        
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = face_mesh_liveness.process(rgb_frame)
     

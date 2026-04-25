@@ -122,6 +122,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info(f"INCOMING: {request.method} {request.url}")
+    try:
+        response = await call_next(request)
+        logger.info(f"OUTGOING: {request.method} {request.url} -> {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"CRASH: {request.method} {request.url} -> {e}")
+        raise
+
 # Dependency to get DB session safely
 async def get_db():
     async with AsyncSessionLocal() as session:

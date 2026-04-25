@@ -12,7 +12,5 @@ deep-sort-realtime
 mediapipe==0.10.11
 scipy
 google-cloud-vision
-torch --index-url https://download.pytorch.org/whl/cpu
-torchvision --index-url https://download.pytorch.org/whl/cpu
 supabase
 httpx
