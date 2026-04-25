@@ -36,6 +36,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('logs');
   const [regSource, setRegSource] = useState('local'); // 'local' or 'remote'
 
+  const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -176,12 +177,12 @@ function App() {
   };
 
   const handleLogin = async () => {
-    if (!email || !mobile || !password) return alert("Please fill all fields");
+    if (!identifier || !password) return alert("Please fill all fields");
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, mobile, password })
+        body: JSON.stringify({ identifier, password })
       });
       const data = await res.json();
       if (res.ok) {
@@ -249,49 +250,65 @@ function App() {
             </p>
             
             <div className="w-full space-y-6">
-                {authMode === 'signup' && (
-                  <div className="space-y-3 animate-in slide-in-from-top-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span>
+                {authMode === 'signup' ? (
+                  <>
+                    <div className="space-y-3 animate-in slide-in-from-top-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span>
+                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                        <LayoutList className="text-slate-600 flex-shrink-0" size={18} />
+                        <input 
+                          type="text" 
+                          value={gymName}
+                          onChange={e => setGymName(e.target.value)}
+                          placeholder="Power Fitness Gym" 
+                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL ADDRESS</span>
+                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                        <Mail className="text-slate-600 flex-shrink-0" size={18} />
+                        <input 
+                          type="email" 
+                          value={email}
+                          onChange={e => setEmail(e.target.value)}
+                          placeholder="owner@gym.com" 
+                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE NO.</span>
+                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                        <Search className="text-slate-600 flex-shrink-0" size={18} />
+                        <input 
+                          type="tel" 
+                          value={mobile}
+                          onChange={e => setMobile(e.target.value)}
+                          placeholder="+91 8770557655" 
+                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL OR MOBILE NO.</span>
                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <LayoutList className="text-slate-600 flex-shrink-0" size={18} />
+                      <User className="text-slate-600 flex-shrink-0" size={18} />
                       <input 
                         type="text" 
-                        value={gymName}
-                        onChange={e => setGymName(e.target.value)}
-                        placeholder="Power Fitness Gym" 
+                        value={identifier}
+                        onChange={e => setIdentifier(e.target.value)}
+                        placeholder="Email or +91..." 
                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
                       />
                     </div>
                   </div>
                 )}
-
-                <div className="space-y-3">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL ADDRESS</span>
-                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                    <Mail className="text-slate-600 flex-shrink-0" size={18} />
-                    <input 
-                      type="email" 
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="owner@gym.com" 
-                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE NO.</span>
-                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                    <Search className="text-slate-600 flex-shrink-0" size={18} />
-                    <input 
-                      type="tel" 
-                      value={mobile}
-                      onChange={e => setMobile(e.target.value)}
-                      placeholder="+91 8770557655" 
-                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                    />
-                  </div>
-                </div>
 
                 <div className="space-y-3">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span>

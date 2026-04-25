@@ -51,8 +51,7 @@ class NodeRequest(BaseModel):
     url: str
 
 class AuthRequest(BaseModel):
-    email: str
-    mobile: str
+    identifier: str
     password: str
 
 class SignupRequest(BaseModel):
@@ -178,10 +177,19 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/auth/login")
 async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(GymOwner).where(GymOwner.email == request.email))
+    # Match either email or mobile number
+    from sqlalchemy import or_
+    result = await db.execute(
+        select(GymOwner).where(
+            or_(
+                GymOwner.email == request.identifier,
+                GymOwner.mobile == request.identifier
+            )
+        )
+    )
     owner = result.scalars().first()
     
-    if not owner or owner.password != request.password or owner.mobile != request.mobile:
+    if not owner or owner.password != request.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     return {
