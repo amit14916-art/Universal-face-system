@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import requests
 
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
@@ -121,10 +122,13 @@ def extract_face(frame: np.ndarray, enforce_liveness=False):
     feature = face_recognizer.feature(aligned_face)
     return [{"embedding": feature[0]}]
 
-async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarray, location: str = "Unknown"):
+async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarray, location: str = "Unknown", owner_id: int = None):
     """Processes tracked face using Cloud-Native pgvector Search with Enhanced Re-ID and Location tracking."""
     global last_visitor_created_at
     
+    if owner_id is None:
+        return None, "System Error"
+
     # 0. Early Quality Filtering (Before doing expensive math)
     _, _, box_w, box_h = bbox
     fh, fw = full_frame.shape[:2]
@@ -153,7 +157,6 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
     _, faces = detector.detect(crop_img)
     
     if faces is None:
-        # DO NOT process unaligned faces, they will ruin accuracy!
         return None, "Aligning..."
         
     aligned_face = face_recognizer.alignCrop(crop_img, faces[0])
@@ -162,9 +165,10 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
     raw_emb = np.array(feature[0], dtype=np.float32)
     embedding = l2_normalize(raw_emb).tolist() 
     
-        # 2. PURE CLOUD SEARCH (Re-ID Logic)
+    # 2. PURE CLOUD SEARCH (Re-ID Logic)
     async with AsyncSessionLocalBG() as session:
         query = select(RegisteredFace).where(
+            RegisteredFace.owner_id == owner_id,
             RegisteredFace.face_encoding.l2_distance(embedding) < 1.40,
             RegisteredFace.is_active == True
         ).order_by(RegisteredFace.face_encoding.l2_distance(embedding)).limit(1)
@@ -172,7 +176,6 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
         result = await session.execute(query)
         p = result.scalars().first()
         
-        # In-Memory Cache to prevent Cloud DB spam for the exact same person
         if not hasattr(process_tracker_crop, "local_cache"):
             process_tracker_crop.local_cache = {}
 
@@ -182,24 +185,31 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
             
             current_time = time.time()
             if p.id in process_tracker_crop.local_cache and (current_time - process_tracker_crop.local_cache[p.id]) < 86400:
-                # Already logged in the last 24 hours, skip database hit!
                 return p.id, p.name
 
             # Prevent Duplicate Logging (Cool-down: 24 hours per person)
             log_check = await session.execute(
                 select(AttendanceLog).where(
+                    AttendanceLog.owner_id == owner_id,
                     AttendanceLog.face_id == p.id,
                     AttendanceLog.timestamp > datetime.now() - timedelta(hours=24)
                 ).limit(1)
             )
             if not log_check.scalars().first():
-                session.add(AttendanceLog(face_id=p.id, timestamp=datetime.now(), location=location))
+                session.add(AttendanceLog(owner_id=owner_id, face_id=p.id, timestamp=datetime.now(), location=location))
                 await session.commit()
+                
+                # Check for Expiry and Trigger Notification
+                is_expired = p.subscription_expiry < datetime.now() if p.subscription_expiry else False
+                if is_expired:
+                    await trigger_notification(owner_id, p, "Membership Expired", session)
+                else:
+                    await trigger_notification(owner_id, p, "Entry Success", session)
             
             process_tracker_crop.local_cache[p.id] = current_time
             return p.id, p.name
 
-    # 3. Create New Visitor (If face is good quality but unknown)
+    # 3. Create New Visitor
     current_time_val = time.time()
     if (current_time_val - last_visitor_created_at) < 15: 
         return None, "Wait..."
@@ -211,16 +221,32 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
 
     async with AsyncSessionLocalBG() as session:
         new_person = RegisteredFace(
-            name=v_name, role="visitor", face_encoding=embedding, image_path=img_path
+            owner_id=owner_id, name=v_name, role="visitor", face_encoding=embedding, image_path=img_path
         )
         session.add(new_person)
         await session.flush()
         
-        session.add(AttendanceLog(face_id=new_person.id, timestamp=datetime.now(), location=location))
+        session.add(AttendanceLog(owner_id=owner_id, face_id=new_person.id, timestamp=datetime.now(), location=location))
         await session.commit()
         last_visitor_created_at = current_time_val
         
         return new_person.id, v_name
+
+async def trigger_notification(owner_id, user, event_type, session):
+    from models import GymOwner
+    result = await session.execute(select(GymOwner).where(GymOwner.id == owner_id))
+    owner = result.scalars().first()
+    if not owner or not owner.webhook_url: return
+
+    message = f"🔔 *Sentinel Alert: {event_type}*\n👤 Name: {user.name}\n📍 Location: Gym Entrance\n⏰ Time: {datetime.now().strftime('%H:%M:%S')}"
+    if event_type == "Membership Expired":
+        message += f"\n⚠️ *Action Required: Membership expired on {user.subscription_expiry.strftime('%d-%m-%Y')}*"
+
+    try:
+        # Async request would be better but requests is sync. Since this is a worker thread, it's okay.
+        requests.post(owner.webhook_url, json={"text": message, "content": message}, timeout=5)
+    except Exception as e:
+        print(f"Webhook Error: {e}")
 
 
 async def save_face_image(id_val, crop_img):

@@ -37,4 +37,7 @@ class GymOwner(Base):
     email = Column(String, unique=True, nullable=False)
     mobile = Column(String, nullable=False)
     password = Column(String, nullable=False)
+    webhook_url = Column(String, nullable=True) # WhatsApp/Telegram Webhook
+    notify_on_entry = Column(Boolean, default=True)
+    notify_on_expiry = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)

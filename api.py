@@ -50,6 +50,7 @@ class BlacklistRequest(BaseModel):
 class NodeRequest(BaseModel):
     name: str
     url: str
+    owner_id: int
 
 class AuthRequest(BaseModel):
     identifier: str
@@ -60,6 +61,12 @@ class SignupRequest(BaseModel):
     email: str
     mobile: str
     password: str
+
+class NotificationSettingsRequest(BaseModel):
+    owner_id: int
+    webhook_url: str
+    notify_on_entry: bool
+    notify_on_expiry: bool
 
 class SubscriptionRequest(BaseModel):
     user_id: int
@@ -157,7 +164,7 @@ async def add_node(request: NodeRequest):
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
                 url = url.rstrip('/') + '/video'
 
-        node = engine.SentinelNode(url, request.name, rotation=None)
+        node = engine.SentinelNode(url, request.name, owner_id=request.owner_id, rotation=None)
         node.start()
         engine.global_nodes[request.name] = node
         return {"message": f"Node {request.name} added successfully."}
@@ -342,6 +349,31 @@ async def update_subscription(request: SubscriptionRequest, db: AsyncSession = D
         raise HTTPException(status_code=400, detail="Invalid date format")
         
     return {"message": "Subscription updated successfully"}
+
+@app.put("/api/settings/notifications")
+async def update_notification_settings(request: NotificationSettingsRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GymOwner).where(GymOwner.id == request.owner_id))
+    owner = result.scalars().first()
+    if not owner: raise HTTPException(status_code=404, detail="Owner not found")
+    
+    owner.webhook_url = request.webhook_url
+    owner.notify_on_entry = request.notify_on_entry
+    owner.notify_on_expiry = request.notify_on_expiry
+    
+    await db.commit()
+    return {"message": "Notification settings updated"}
+
+@app.get("/api/settings/notifications")
+async def get_notification_settings(owner_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GymOwner).where(GymOwner.id == owner_id))
+    owner = result.scalars().first()
+    if not owner: raise HTTPException(status_code=404, detail="Owner not found")
+    
+    return {
+        "webhook_url": owner.webhook_url,
+        "notify_on_entry": owner.notify_on_entry,
+        "notify_on_expiry": owner.notify_on_expiry
+    }
 
 @app.get("/api/stats/hourly")
 async def get_hourly_stats(db: AsyncSession = Depends(get_db)):

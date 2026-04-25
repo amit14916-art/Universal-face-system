@@ -49,6 +49,10 @@ function App() {
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
   const [stats, setStats] = useState(null);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [notifyOnEntry, setNotifyOnEntry] = useState(true);
+  const [notifyOnExpiry, setNotifyOnExpiry] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn && ownerId) {
@@ -77,6 +81,41 @@ function App() {
     } catch (error) {
       console.error("Sync Error:", error);
     }
+  };
+
+  const fetchSettings = async () => {
+    if (!ownerId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/settings/notifications?owner_id=${ownerId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWebhookUrl(data.webhook_url || '');
+        setNotifyOnEntry(data.notify_on_entry);
+        setNotifyOnExpiry(data.notify_on_expiry);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && ownerId) fetchSettings();
+  }, [isLoggedIn, ownerId]);
+
+  const saveNotificationSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await fetch(`${API_BASE}/api/settings/notifications`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          owner_id: ownerId,
+          webhook_url: webhookUrl,
+          notify_on_entry: notifyOnEntry,
+          notify_on_expiry: notifyOnExpiry
+        })
+      });
+      alert("Settings Saved Successfully!");
+    } catch (e) { alert("Failed to save settings"); }
+    setIsSavingSettings(false);
   };
 
   const toggleBlacklist = async (id, status) => {
@@ -431,6 +470,27 @@ function App() {
             </div>
           </header>
 
+          {/* REAL-TIME EXPIRY ALERTS */}
+          {logs.length > 0 && new Date(logs[0].timestamp) > new Date(Date.now() - 30000) && logs[0].subscription_status === 'expired' && (
+            <div className="bg-red-600/20 border-2 border-red-600/50 rounded-[32px] p-8 flex items-center justify-between animate-pulse shadow-2xl shadow-red-900/20">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 rounded-2xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/40">
+                  <ShieldOff size={32} className="text-white" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xl font-black text-white tracking-tighter uppercase mb-1">CRITICAL ACCESS DENIED</h4>
+                  <p className="text-[10px] text-red-500 font-black uppercase tracking-widest">
+                    Member <span className="text-white">{logs[0].name}</span> has an expired subscription. Access protocol engaged.
+                  </p>
+                </div>
+              </div>
+              <div className="hidden md:flex flex-col items-end">
+                <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Detected at</span>
+                <span className="text-2xl font-black text-white heading-font tabular-nums">{new Date(logs[0].timestamp).toLocaleTimeString()}</span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
              
              {/* DATA LIST AREA */}
@@ -576,7 +636,62 @@ function App() {
                             >
                                UPDATE PROTOCOL <ArrowRight size={18} />
                             </button>
-                         </div>
+
+                             <div className="pt-8 border-t border-white/5 space-y-8 text-left">
+                                <div>
+                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Smart Notifications</h3>
+                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Telegram via Webhooks</p>
+                                </div>
+
+                                <div className="space-y-6">
+                                  <div className="space-y-4">
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2">Webhook URL</label>
+                                    <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
+                                      <Bell className="text-slate-600 flex-shrink-0" size={24} />
+                                      <input 
+                                        type="text" 
+                                        value={webhookUrl} 
+                                        onChange={e => setWebhookUrl(e.target.value)} 
+                                        placeholder="https://webhook.site/..." 
+                                        className="w-full bg-transparent border-none text-md text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button 
+                                      onClick={() => setNotifyOnEntry(!notifyOnEntry)}
+                                      className={`p-6 rounded-[24px] border-2 flex items-center justify-between transition-all ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                                    >
+                                      <div className="flex flex-col items-start">
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Every Entry</span>
+                                        <span className="text-sm font-black">Notify on Check-in</span>
+                                      </div>
+                                      <CheckCircle className={notifyOnEntry ? 'text-white' : 'text-slate-800'} size={24} />
+                                    </button>
+
+                                    <button 
+                                      onClick={() => setNotifyOnExpiry(!notifyOnExpiry)}
+                                      className={`p-6 rounded-[24px] border-2 flex items-center justify-between transition-all ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                                    >
+                                      <div className="flex flex-col items-start">
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Critical Alert</span>
+                                        <span className="text-sm font-black">Expiry Notifications</span>
+                                      </div>
+                                      <Bell className={notifyOnExpiry ? 'text-white' : 'text-slate-800'} size={24} />
+                                    </button>
+                                  </div>
+
+                                  <button 
+                                    onClick={saveNotificationSettings}
+                                    disabled={isSavingSettings}
+                                    className="w-full px-10 py-5 bg-emerald-600 text-white rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
+                                  >
+                                    {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} />
+                                  </button>
+                                </div>
+                             </div>
+                          </div>
                        ) : (
                          <div className="divide-y divide-white/5">
                             {logs.map((l, i) => (

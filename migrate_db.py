@@ -58,6 +58,25 @@ async def migrate():
         except Exception as e:
             print(f"Skipped owner_id in attendance_logs: {e}")
 
+        # Add notification columns to gym_owners
+        try:
+            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN webhook_url VARCHAR"))
+            print("Added webhook_url to gym_owners")
+        except Exception as e:
+            print(f"Skipped webhook_url: {e}")
+
+        try:
+            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN notify_on_entry BOOLEAN DEFAULT TRUE"))
+            print("Added notify_on_entry to gym_owners")
+        except Exception as e:
+            print(f"Skipped notify_on_entry: {e}")
+
+        try:
+            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN notify_on_expiry BOOLEAN DEFAULT TRUE"))
+            print("Added notify_on_expiry to gym_owners")
+        except Exception as e:
+            print(f"Skipped notify_on_expiry: {e}")
+
     print("Migration complete.")
     await engine.dispose()
 

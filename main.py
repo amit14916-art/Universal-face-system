@@ -45,9 +45,10 @@ track_identities = {} # Global map: track_id -> "Name"
 global_nodes = {} # Global registry: node_name -> node_instance
 
 class SentinelNode:
-    def __init__(self, source_id, name="Node", rotation=None):
+    def __init__(self, source_id, name="Node", owner_id=None, rotation=None):
         self.source_id = source_id
         self.name = name
+        self.owner_id = owner_id
         self.rotation = rotation # None, cv2.ROTATE_90_CLOCKWISE, etc.
         self.running = False
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
@@ -164,7 +165,7 @@ class SentinelNode:
                     crop = frame[mt:mb, ml:mr].copy()
                     if crop.size > 0:
                         track_identities[node_track_id] = "Detecting..."
-                        shared_job_queue.put((node_track_id, crop, (ml, mt, mr-ml, mb-mt), frame.copy(), self.name))
+                        shared_job_queue.put((node_track_id, crop, (ml, mt, mr-ml, mb-mt), frame.copy(), self.name, self.owner_id))
                 
                 # Visuals
                 color = (0, 60, 255) if "Visitor" in name or "BLACKLIST" in name else (0, 220, 80)
@@ -210,9 +211,9 @@ def processing_worker():
     while True:
         job = shared_job_queue.get()
         if job is None: break
-        track_id, crop_img, bbox, full_frame, location = job
+        track_id, crop_img, bbox, full_frame, location, owner_id = job
         try:
-            face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location))
+            face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location, owner_id))
             track_identities[track_id] = name
         except Exception as e:
             log_print(f"Worker Error: {e}")
