@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Shield, LayoutList, User, ShieldOff, Trash2, X, Activity, 
-  Users, Clock, Edit2, Settings, History, MapPin, 
+  Users, Clock, Edit2, Settings, History, MapPin, Download,
   ChevronRight, Bell, Search, Info, Camera, LogIn, Lock, Mail, ArrowRight, LogOut, CheckCircle
 } from 'lucide-react';
 import './index.css';
@@ -132,22 +132,6 @@ function App() {
     fetchData();
   };
 
-  const handleRename = async () => {
-    if (!editingUser || !newName.trim()) return;
-    try {
-      await fetch(`${API_BASE}/api/users/${editingUser.id}/rename`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName })
-      });
-    } catch (e) {
-      console.error("Save failed:", e);
-    } finally {
-      setEditingUser(null);
-      setNewName('');
-      fetchData();
-    }
-  };
 
   const deleteUser = async (id) => {
     if (confirm("Permanently delete this biometric profile?")) {
