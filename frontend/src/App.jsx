@@ -37,6 +37,8 @@ function App() {
   const [newRole, setNewRole] = useState('');
   const [newExpiry, setNewExpiry] = useState('');
   const [userActivity, setUserActivity] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
   const videoRef = useRef(null);
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState('member');
@@ -588,7 +590,15 @@ function App() {
 
                              {/* Peak Hours Chart */}
                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
-                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8">Today_Peak_Hours</h4>
+                                <div className="flex items-center justify-between mb-8">
+                                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural_Activity_History</h4>
+                                   <button 
+                                     onClick={() => window.open(`${API_BASE}/api/export/attendance`, '_blank')}
+                                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-600/20 text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-blue-500/20 transition-all"
+                                   >
+                                      <Download size={14} /> Export_Logs
+                                   </button>
+                                </div>
                                <div className="flex-1 min-h-0">
                                  <ResponsiveContainer width="100%" height="100%">
                                    <BarChart data={stats?.peak_hours || []}>
@@ -610,9 +620,44 @@ function App() {
                              </div>
                            </div>
                          </div>
-                       ) : activeTab === 'registry' ? (
-                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-fit">
-                            {users.map(u => (
+                        ) : activeTab === 'registry' ? (
+                          <div className="space-y-6">
+                             {/* Search & Filter Header */}
+                             <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/[0.02] border border-white/5 p-6 rounded-[32px] backdrop-blur-xl">
+                                <div className="flex-1 w-full relative">
+                                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={20} />
+                                   <input 
+                                     type="text" 
+                                     placeholder="Search neural identities..." 
+                                     value={searchQuery}
+                                     onChange={e => setSearchQuery(e.target.value)}
+                                     className="w-full bg-[#020617] border-2 border-white/5 rounded-2xl py-4 pl-16 pr-6 text-white font-bold focus:border-blue-600 transition-all placeholder:text-slate-800"
+                                   />
+                                </div>
+                                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                                   {['all', 'active', 'expired', 'vip', 'trainer'].map(f => (
+                                      <button 
+                                        key={f}
+                                        onClick={() => setFilterType(f)}
+                                        className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${filterType === f ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
+                                      >
+                                         {f}
+                                      </button>
+                                   ))}
+                                </div>
+                             </div>
+
+                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-fit">
+                                {users.filter(u => {
+                                   const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                   const isExpired = u.subscription_expiry ? new Date(u.subscription_expiry) < new Date() : true;
+                                   
+                                   if (filterType === 'active') return matchesSearch && !isExpired;
+                                   if (filterType === 'expired') return matchesSearch && isExpired;
+                                   if (filterType === 'vip') return matchesSearch && u.role === 'vip';
+                                   if (filterType === 'trainer') return matchesSearch && u.role === 'trainer';
+                                   return matchesSearch;
+                                }).map(u => (
                                <div key={u.id} className="glass-panel p-4 flex items-center justify-between border-white/5 hover:border-blue-600/30 transition-all bg-white/[0.015] rounded-[24px] group">
                                   <div className="flex items-center gap-4 text-left">
                                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5 relative shadow-xl group-hover:scale-105 transition-transform duration-500">

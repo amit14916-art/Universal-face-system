@@ -236,6 +236,33 @@ app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets
 async def root():
     return FileResponse("frontend/dist/index.html")
 
+@app.get("/api/export/attendance")
+async def export_attendance(db: AsyncSession = Depends(get_db)):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    result = await db.execute(
+        select(AttendanceLog, RegisteredFace.name)
+        .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
+        .order_by(AttendanceLog.timestamp.desc())
+    )
+    logs = result.all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Name", "Timestamp", "Node"])
+    
+    for log, name in logs:
+        writer.writerow([log.id, name, log.timestamp.strftime("%Y-%m-%d %H:%M:%S"), log.node_name])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=attendance_logs.csv"}
+    )
+
 @app.get("/api/users")
 async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RegisteredFace).where(RegisteredFace.owner_id == owner_id))
