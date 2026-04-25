@@ -85,7 +85,7 @@ class SentinelNode:
 
         # Initialize local detector for thread safety
         detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
-        local_detector = cv2.FaceDetectorYN.create(detector_path, "", (320, 320), score_threshold=0.6, nms_threshold=0.3, top_k=15)
+        local_detector = cv2.FaceDetectorYN.create(detector_path, "", (320, 320), score_threshold=0.6, nms_threshold=0.3, top_k=50)
 
         # Performance Optimization: Frame skipping & Resizing
         frame_skip = 2 if "Phone" in self.name else 0 
