@@ -219,8 +219,8 @@ def processing_worker():
             log_print(f"Worker Error: {e}")
             track_identities[track_id] = "Scanning..."
 
-# Spawn a thread pool to handle up to 10 faces in parallel
-NUM_WORKERS = 10
+# Spawn a thread pool to handle faces in parallel - Reduced for cloud stability
+NUM_WORKERS = 2
 _worker_threads = []
 
 def start_background_workers():

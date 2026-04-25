@@ -106,8 +106,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Universal Face System API", lifespan=lifespan)
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": time.time()}
+
 # Enable CORS for frontend integration
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:8000").split(",")
+origins = os.getenv("CORS_ORIGINS", "*").split(",")
 origins = [o.strip() for o in origins if o.strip()]
 
 app.add_middleware(
