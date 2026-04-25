@@ -17,11 +17,22 @@ async def migrate():
 
     engine = create_async_engine(DATABASE_URL, connect_args={"statement_cache_size": 0})
     
-    async with engine.begin() as conn:
+    async with engine.connect() as conn:
         print("Running migrations...")
         
-        # Create gym_owners table if not exists
-        await conn.execute(text("""
+        async def run_step(sql, msg):
+            try:
+                async with conn.begin():
+                    await conn.execute(text(sql))
+                    print(f"DONE: {msg}")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    print(f"SKIPPED (Existing): {msg}")
+                else:
+                    print(f"FAILED: {msg} -> {e}")
+
+        # 1. Base Table
+        await run_step("""
             CREATE TABLE IF NOT EXISTS gym_owners (
                 id SERIAL PRIMARY KEY,
                 gym_name VARCHAR,
@@ -30,52 +41,20 @@ async def migrate():
                 password_hash VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """, "gym_owners table")
 
-        # Add columns to registered_faces
-        try:
-            await conn.execute(text("ALTER TABLE registered_faces ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)"))
-            print("Added owner_id to registered_faces")
-        except Exception as e:
-            print(f"Skipped owner_id in registered_faces: {e}")
+        # 2. Member Columns
+        await run_step("ALTER TABLE registered_faces ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)", "owner_id in registered_faces")
+        await run_step("ALTER TABLE registered_faces ADD COLUMN subscription_expiry TIMESTAMP", "subscription_expiry in registered_faces")
+        await run_step("ALTER TABLE registered_faces ADD COLUMN plan_type VARCHAR DEFAULT 'monthly'", "plan_type in registered_faces")
 
-        try:
-            await conn.execute(text("ALTER TABLE registered_faces ADD COLUMN subscription_expiry TIMESTAMP"))
-            print("Added subscription_expiry to registered_faces")
-        except Exception as e:
-            print(f"Skipped subscription_expiry in registered_faces: {e}")
+        # 3. Attendance Columns
+        await run_step("ALTER TABLE attendance_logs ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)", "owner_id in attendance_logs")
 
-        try:
-            await conn.execute(text("ALTER TABLE registered_faces ADD COLUMN plan_type VARCHAR DEFAULT 'monthly'"))
-            print("Added plan_type to registered_faces")
-        except Exception as e:
-            print(f"Skipped plan_type in registered_faces: {e}")
-
-        # Add columns to attendance_logs
-        try:
-            await conn.execute(text("ALTER TABLE attendance_logs ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)"))
-            print("Added owner_id to attendance_logs")
-        except Exception as e:
-            print(f"Skipped owner_id in attendance_logs: {e}")
-
-        # Add notification columns to gym_owners
-        try:
-            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN webhook_url VARCHAR"))
-            print("Added webhook_url to gym_owners")
-        except Exception as e:
-            print(f"Skipped webhook_url: {e}")
-
-        try:
-            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN notify_on_entry BOOLEAN DEFAULT TRUE"))
-            print("Added notify_on_entry to gym_owners")
-        except Exception as e:
-            print(f"Skipped notify_on_entry: {e}")
-
-        try:
-            await conn.execute(text("ALTER TABLE gym_owners ADD COLUMN notify_on_expiry BOOLEAN DEFAULT TRUE"))
-            print("Added notify_on_expiry to gym_owners")
-        except Exception as e:
-            print(f"Skipped notify_on_expiry: {e}")
+        # 4. Settings Columns
+        await run_step("ALTER TABLE gym_owners ADD COLUMN webhook_url VARCHAR", "webhook_url in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN notify_on_entry BOOLEAN DEFAULT TRUE", "notify_on_entry in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN notify_on_expiry BOOLEAN DEFAULT TRUE", "notify_on_expiry in gym_owners")
 
     print("Migration complete.")
     await engine.dispose()
