@@ -220,6 +220,22 @@ function App() {
     }
   };
 
+  const handleUpdateSubscription = async (userId, expiryDate, planType) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/users/subscription`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, expiry_date: expiryDate, plan_type: planType })
+      });
+      if (res.ok) {
+        alert("Subscription updated!");
+        fetchData();
+      }
+    } catch (e) {
+      console.error("Update failed", e);
+    }
+  };
+
   const handleUpdateNode = async () => {
     try {
       await fetch(`${API_BASE}/api/nodes/add`, {
@@ -373,10 +389,9 @@ function App() {
             <h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">{currentGymName || 'Sentinel_AI'}</h1>
           </div>
 
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
             <button onClick={() => setActiveTab('logs')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'logs' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Activity Logs</button>
-            <button onClick={() => setActiveTab('registry')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'registry' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Registry</button>
-            <button onClick={() => setActiveTab('settings')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Settings</button>
+            <button onClick={() => setActiveTab('registry')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'registry' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Member Registry</button>
+            <button onClick={() => setActiveTab('settings')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Node Settings</button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -394,7 +409,7 @@ function App() {
           <header className="flex justify-between items-end border-b-2 border-white/5 pb-6 text-left">
             <div>
               <h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">
-                {activeTab === 'registry' ? 'Identity Hub' : activeTab === 'settings' ? 'Node Protocol' : 'System Logs'}
+                {activeTab === 'registry' ? 'MEMBER REGISTRY' : activeTab === 'settings' ? 'NODE SETTINGS' : 'ACTIVITY LOGS'}
               </h2>
               <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -437,11 +452,25 @@ function App() {
                                      </div>
                                      <div className="flex flex-col">
                                         <div className="text-sm font-black text-white leading-tight tracking-tight">{u.name}</div>
-                                        <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest mt-1.5 px-1.5 py-0.5 border border-white/5 rounded bg-white/5">{u.role}</div>
+                                         <div className="flex items-center gap-2 mt-1.5">
+                                            <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest px-1.5 py-0.5 border border-white/5 rounded bg-white/5">{u.role}</div>
+                                            {u.subscription_expiry ? (
+                                              <div className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${new Date(u.subscription_expiry) > new Date() ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                Exp: {new Date(u.subscription_expiry).toLocaleDateString()}
+                                              </div>
+                                            ) : (
+                                              <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest px-1.5 py-0.5 bg-white/5 rounded">No Plan</div>
+                                            )}
+                                         </div>
                                      </div>
                                   </div>
-                                  <div className="flex gap-1.5">
-                                     <button onClick={() => {setEditingUser(u); setNewName(u.name);}} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button>
+                                   <div className="flex gap-1.5">
+                                      <button onClick={() => {
+                                        const nextMonth = new Date();
+                                        nextMonth.setMonth(nextMonth.getMonth() + 1);
+                                        handleUpdateSubscription(u.id, nextMonth.toISOString(), 'monthly');
+                                      }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all" title="Renew 1 Month"><Clock size={15} /></button>
+                                      <button onClick={() => {setEditingUser(u); setNewName(u.name);}} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button>
                                      <button onClick={() => deleteUser(u.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={15} /></button>
                                   </div>
                                </div>
@@ -481,7 +510,10 @@ function App() {
                                      </div>
                                      <div>
                                         <div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div>
-                                        <div className={`mt-2 inline-flex items-center px-3 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest ${l.role === 'government' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/10' : 'bg-blue-500/10 text-blue-400 border-blue-500/10'}`}>{l.role}</div>
+                                         <div className="flex items-center gap-2 mt-2">
+                                            <div className={`inline-flex items-center px-3 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest ${l.role === 'government' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/10' : 'bg-blue-500/10 text-blue-400 border-blue-500/10'}`}>{l.role}</div>
+                                            <div className={`inline-flex items-center px-3 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest ${l.subscription_status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/10' : 'bg-red-500/10 text-red-500 border-red-500/10'}`}>{l.subscription_status}</div>
+                                         </div>
                                      </div>
                                   </div>
                                   <div className="flex items-center gap-6 text-right">

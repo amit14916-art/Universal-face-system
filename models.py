@@ -16,6 +16,8 @@ class RegisteredFace(Base):
     created_at = Column(DateTime, default=datetime.now)
     is_active = Column(Boolean, default=True)
     is_blacklisted = Column(Boolean, default=False)
+    subscription_expiry = Column(DateTime, nullable=True) # Date when membership ends
+    plan_type = Column(String, default="monthly") # e.g., monthly, yearly, vip
     notes = Column(String, nullable=True)
 
 class AttendanceLog(Base):

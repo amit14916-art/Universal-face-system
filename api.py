@@ -60,6 +60,11 @@ class SignupRequest(BaseModel):
     mobile: str
     password: str
 
+class SubscriptionRequest(BaseModel):
+    user_id: int
+    expiry_date: str # ISO format
+    plan_type: str
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure static directories exist to prevent deployment crashes
@@ -220,6 +225,8 @@ async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
             "role": u.role,
             "image_path": u.image_path,
             "is_blacklisted": u.is_blacklisted,
+            "subscription_expiry": u.subscription_expiry,
+            "plan_type": u.plan_type,
             "notes": u.notes,
             "created_at": u.created_at,
             "is_active": u.is_active
@@ -229,7 +236,7 @@ async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
 @app.get("/api/logs")
 async def get_logs(owner_id: int, limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
     query = (
-        select(AttendanceLog, RegisteredFace.name, RegisteredFace.role, RegisteredFace.image_path)
+        select(AttendanceLog, RegisteredFace.name, RegisteredFace.role, RegisteredFace.image_path, RegisteredFace.subscription_expiry)
         .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
         .where(AttendanceLog.owner_id == owner_id)
         .order_by(AttendanceLog.timestamp.desc())
@@ -239,17 +246,36 @@ async def get_logs(owner_id: int, limit: int = 50, offset: int = 0, db: AsyncSes
     result = await db.execute(query)
     logs = []
     for row in result.all():
-        log, name, role, img_path = row
+        log, name, role, img_path, expiry = row
+        from datetime import datetime
+        is_expired = expiry < datetime.now() if expiry else False
         logs.append({
             "id": log.id,
             "face_id": log.face_id,
             "name": name,
             "role": role,
             "image_path": img_path,
+            "subscription_status": "expired" if is_expired else "active",
             "timestamp": log.timestamp,
             "location": log.location
         })
     return logs
+
+@app.put("/api/users/subscription")
+async def update_subscription(request: SubscriptionRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == request.user_id))
+    user = result.scalars().first()
+    if not user: raise HTTPException(status_code=404, detail="Member not found")
+    
+    from datetime import datetime
+    try:
+        user.subscription_expiry = datetime.fromisoformat(request.expiry_date.replace("Z", "+00:00"))
+        user.plan_type = request.plan_type
+        await db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+        
+    return {"message": "Subscription updated successfully"}
 
 @app.get("/api/stats/hourly")
 async def get_hourly_stats(db: AsyncSession = Depends(get_db)):
