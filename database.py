@@ -44,14 +44,14 @@ AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=F
 async def init_db():
     if "postgres" in DATABASE_URL:
         # Initialize pgvector extension safely for Supabase
-        import asyncpg
-        try:
-            raw_url = DATABASE_URL.replace("+asyncpg", "")
-            conn = await asyncpg.connect(raw_url)
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            await conn.close()
-        except Exception as e:
-            pass
+        # import asyncpg
+        # try:
+        #     raw_url = DATABASE_URL.replace("+asyncpg", "")
+        #     conn = await asyncpg.connect(raw_url)
+        #     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+        #     await conn.close()
+        # except Exception as e:
+        #     pass
             
     try:
         async with engine.begin() as conn:
