@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     for node_name, node in engine.global_nodes.items():
         node.stop()
 
-app = FastAPI(title="Universal Face System API", lifespan=lifespan)
+app = FastAPI(title="Universal Face System API")
 
 @app.get("/health")
 async def health_check():
