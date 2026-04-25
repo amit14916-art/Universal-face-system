@@ -165,6 +165,34 @@ async def stream_node(node_name: str):
 async def get_system_telemetry():
     return engine.get_telemetry()
 
+@app.post("/api/recognize/crop")
+async def recognize_crop(request: Request, db: AsyncSession = Depends(get_db)):
+    data = await request.json()
+    face_base64 = data.get("image_base64")
+    node_name = data.get("node_name", "Edge_Node")
+    owner_id = data.get("owner_id", 1)
+    
+    if not face_base64:
+        return {"status": "error", "message": "No image data"}
+        
+    # Process the crop through the Recognition Engine
+    import base64
+    import numpy as np
+    
+    img_data = base64.b64decode(face_base64.split(",")[1] if "," in face_base64 else face_base64)
+    nparr = np.frombuffer(img_data, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # We use a special mode in the engine to just recognize this single cropped frame
+    match_id, name, score = await engine.process_single_crop(frame, node_name, owner_id, db)
+    
+    return {
+        "status": "success",
+        "match_id": match_id,
+        "name": name,
+        "score": float(score)
+    }
+
 @app.post("/api/nodes/add")
 async def add_node(request: NodeRequest):
     if request.name in engine.global_nodes:

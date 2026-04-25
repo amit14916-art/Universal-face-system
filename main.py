@@ -197,6 +197,16 @@ class SentinelNode:
 
         self.cap.release()
 
+async def process_single_crop(crop_img, location, owner_id, db):
+    """Bridge for the Edge Agent to process individual face crops."""
+    try:
+        # We reuse the existing face_service logic
+        face_id, name = await face_service.process_tracker_crop(crop_img, [0,0,crop_img.shape[1],crop_img.shape[0]], crop_img, location, owner_id)
+        return face_id, name, 0.99
+    except Exception as e:
+        log_print(f"Edge Crop Error: {e}")
+        return None, "Error", 0.0
+
 def get_telemetry():
     """Returns real-time performance metrics for all nodes."""
     return {
