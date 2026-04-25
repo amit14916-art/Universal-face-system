@@ -349,6 +349,53 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
         "peak_hours": peak_hours
     }
 
+@app.get("/api/users/{user_id}/activity")
+async def get_user_activity(user_id: int, db: AsyncSession = Depends(get_db)):
+    # Get attendance counts for last 30 days
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    result = await db.execute(
+        select(func.date(AttendanceLog.timestamp), func.count(AttendanceLog.id))
+        .where(AttendanceLog.face_id == user_id, AttendanceLog.timestamp >= thirty_days_ago)
+        .group_by(func.date(AttendanceLog.timestamp))
+        .order_by(func.date(AttendanceLog.timestamp))
+    )
+    
+    activity = result.all()
+    # Fill gaps for a continuous chart
+    activity_map = {str(row[0]): row[1] for row in activity}
+    full_data = []
+    for i in range(30):
+        d = (thirty_days_ago + timedelta(days=i)).date()
+        full_data.append({"date": str(d), "count": activity_map.get(str(d), 0)})
+    
+    return full_data
+
+class UserUpdateRequest(BaseModel):
+    name: str = None
+    role: str = None
+    subscription_expiry: str = None # ISO format
+    plan_type: str = None
+
+@app.post("/api/users/{user_id}/update")
+async def update_user(user_id: int, request: UserUpdateRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if request.name: user.name = request.name
+    if request.role: user.role = request.role
+    if request.plan_type: user.plan_type = request.plan_type
+    if request.subscription_expiry:
+        try:
+            from datetime import datetime
+            user.subscription_expiry = datetime.fromisoformat(request.subscription_expiry)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid date format")
+            
+    await db.commit()
+    return {"message": "Profile updated successfully", "status": "success"}
+
 @app.put("/api/users/subscription")
 async def update_subscription(request: SubscriptionRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == request.user_id))

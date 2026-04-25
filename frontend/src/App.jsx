@@ -34,6 +34,9 @@ function App() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState('');
+  const [newExpiry, setNewExpiry] = useState('');
+  const [userActivity, setUserActivity] = useState([]);
   const videoRef = useRef(null);
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState('member');
@@ -279,6 +282,35 @@ function App() {
       }
     } catch (e) {
       console.error("Update failed", e);
+    }
+  };
+
+  const fetchUserActivity = async (userId) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/users/${userId}/activity`);
+      const data = await res.json();
+      setUserActivity(data);
+    } catch (err) {
+      console.error("Activity fetch error:", err);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!editingUser) return;
+    try {
+      await fetch(`${API_BASE}/api/users/${editingUser.id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name: newName, 
+          role: newRole,
+          subscription_expiry: newExpiry 
+        }),
+      });
+      fetchData();
+      setEditingUser(null);
+    } catch (err) {
+      console.error("Update error:", err);
     }
   };
 
@@ -607,7 +639,13 @@ function App() {
                                         nextMonth.setMonth(nextMonth.getMonth() + 1);
                                         handleUpdateSubscription(u.id, nextMonth.toISOString(), 'monthly');
                                       }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all" title="Renew 1 Month"><Clock size={15} /></button>
-                                      <button onClick={() => {setEditingUser(u); setNewName(u.name);}} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button>
+                                      <button onClick={() => {
+                                        setEditingUser(u); 
+                                        setNewName(u.name);
+                                        setNewRole(u.role);
+                                        setNewExpiry(u.subscription_expiry ? u.subscription_expiry.split('T')[0] : '');
+                                        fetchUserActivity(u.id);
+                                      }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button>
                                      <button onClick={() => deleteUser(u.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={15} /></button>
                                   </div>
                                </div>
@@ -734,22 +772,103 @@ function App() {
 
       {/* FIXED RENAME MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-3xl z-[200] flex items-center justify-center p-6 md:p-12">
-          <div className="glass-panel w-full max-w-xl p-10 md:p-16 border-4 border-white/10 rounded-[48px] shadow-[0_0_100px_rgba(0,0,0,0.8)] relative bg-[#020617] animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-3xl z-[200] flex items-center justify-center p-6 md:p-12 overflow-y-auto">
+          <div className="glass-panel w-full max-w-2xl p-10 md:p-16 border-4 border-white/10 rounded-[48px] shadow-[0_0_100px_rgba(0,0,0,0.8)] relative bg-[#020617] animate-in zoom-in-95 duration-300 my-auto">
              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/10 blur-[80px] rounded-full pointer-events-none" />
-             <h2 className="text-3xl md:text-4xl font-black heading-font text-white mb-10 tracking-tight leading-normal">MOD_PROTOCOL</h2>
-             <div className="space-y-10">
-                <div className="space-y-3">
-                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4">UPDATED IDENTITY LABEL</label>
-                   <input 
-                     value={newName} 
-                     onChange={e => setNewName(e.target.value)} 
-                     className="w-full bg-white/[0.03] border-4 border-white/5 rounded-[28px] py-6 px-10 text-2xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner" 
-                   />
+             
+             <div className="flex items-center gap-6 mb-12">
+                <div className="w-20 h-20 rounded-[28px] overflow-hidden border-4 border-white/10 shadow-2xl">
+                   <img src={`${API_BASE}/${editingUser.image_path}`} className="w-full h-full object-cover" alt="" />
                 </div>
-                <div className="flex gap-4">
-                   <button onClick={handleRename} className="py-6 px-10 bg-blue-600 text-white font-black rounded-2xl flex-1 text-lg transition-all shadow-2xl active:scale-95 leading-none">SAVE SIGNATURE</button>
-                   <button onClick={() => setEditingUser(null)} className="py-6 px-10 bg-white/5 text-slate-500 font-black rounded-2xl flex-1 text-lg transition-all border-2 border-white/5 leading-none">DISCARD</button>
+                <div>
+                   <h2 className="text-3xl font-black heading-font text-white tracking-tight leading-none">MEMBER_PROTOCOL</h2>
+                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] mt-3">Identity Modification Matrix</p>
+                </div>
+             </div>
+
+             {/* Personal Activity Chart */}
+             <div className="mb-10 glass-panel p-6 bg-white/[0.02] border-white/5 rounded-[32px] h-[180px] flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                   <h4 className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Attendance_Consistency_30D</h4>
+                   <div className="text-[8px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded">
+                      Total Visits: {userActivity.reduce((acc, curr) => acc + curr.count, 0)}
+                   </div>
+                </div>
+                <div className="flex-1">
+                   <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={userActivity}>
+                         <defs>
+                            <linearGradient id="colorUser" x1="0" y1="0" x2="0" y2="1">
+                               <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                               <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                            </linearGradient>
+                         </defs>
+                         <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorUser)" />
+                      </AreaChart>
+                   </ResponsiveContainer>
+                </div>
+             </div>
+
+             <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Display Identity</label>
+                      <input 
+                        value={newName} 
+                        onChange={e => setNewName(e.target.value)} 
+                        className="w-full bg-white/[0.03] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner" 
+                      />
+                   </div>
+                   <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Access Tier</label>
+                      <select 
+                        value={newRole} 
+                        onChange={e => setNewRole(e.target.value)} 
+                        className="w-full bg-[#020617] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner appearance-none"
+                      >
+                         <option value="member">MEMBER</option>
+                         <option value="vip">VIP</option>
+                         <option value="trainer">TRAINER</option>
+                         <option value="staff">STAFF</option>
+                         <option value="admin">ADMIN</option>
+                      </select>
+                   </div>
+                </div>
+
+                <div className="space-y-4">
+                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Subscription Cycle Expiry</label>
+                   <div className="flex flex-col md:flex-row gap-4">
+                      <input 
+                        type="date"
+                        value={newExpiry} 
+                        onChange={e => setNewExpiry(e.target.value)} 
+                        className="flex-1 bg-white/[0.03] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner [color-scheme:dark]" 
+                      />
+                      <div className="flex gap-2">
+                         {[
+                            { label: '+1M', days: 30 },
+                            { label: '+3M', days: 90 },
+                            { label: '+1Y', days: 365 }
+                         ].map(preset => (
+                            <button 
+                              key={preset.label}
+                              onClick={() => {
+                                 const d = new Date(newExpiry || new Date());
+                                 d.setDate(d.getDate() + preset.days);
+                                 setNewExpiry(d.toISOString().split('T')[0]);
+                              }}
+                              className="px-4 bg-white/5 hover:bg-blue-600 text-[10px] font-black text-white rounded-2xl transition-all border-2 border-white/5"
+                            >
+                               {preset.label}
+                            </button>
+                         ))}
+                      </div>
+                   </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                   <button onClick={handleUpdateProfile} className="py-6 px-10 bg-blue-600 text-white font-black rounded-[32px] flex-1 text-lg transition-all shadow-2xl shadow-blue-900/40 hover:bg-blue-500 active:scale-95 leading-none">COMMIT CHANGES</button>
+                   <button onClick={() => setEditingUser(null)} className="py-6 px-10 bg-white/5 text-slate-500 font-black rounded-[32px] flex-1 text-lg transition-all border-2 border-white/5 hover:bg-white/10 leading-none">DISCARD</button>
                 </div>
              </div>
           </div>
