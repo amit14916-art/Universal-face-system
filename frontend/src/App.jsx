@@ -34,19 +34,28 @@ function App() {
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState('member');
   const [activeTab, setActiveTab] = useState('logs');
+  const [regSource, setRegSource] = useState('local'); // 'local' or 'remote'
+
+  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [password, setPassword] = useState('');
+  const [gymName, setGymName] = useState('');
+  const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
+  const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
 
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && ownerId) {
       fetchData();
       const interval = setInterval(fetchData, 3000);
       return () => clearInterval(interval);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, ownerId]);
 
   const fetchData = async () => {
+    if (!ownerId) return;
     try {
       const baseUrl = API_BASE;
-      const cacheBuster = `?t=${Date.now()}`;
+      const cacheBuster = `?t=${Date.now()}&owner_id=${ownerId}`;
       const [lRes, uRes, tRes] = await Promise.all([
         fetch(`${baseUrl}/api/logs${cacheBuster}`),
         fetch(`${baseUrl}/api/users${cacheBuster}`),
@@ -94,35 +103,62 @@ function App() {
     }
   };
 
-  const openWebcam = () => {
+  const openWebcam = async (source = 'local') => {
     setIsRegisterOpen(true);
-    // No longer using local navigator.mediaDevices
+    setRegSource(source);
+    if (source === 'local') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch (e) {
+        console.error("Webcam Error:", e);
+      }
+    }
   };
 
   const closeWebcam = () => {
     setIsRegisterOpen(false);
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+    }
   };
 
   const captureAndRegister = async () => {
-    const streamImg = document.getElementById('sentinel-enroll-stream');
-    if (!streamImg) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = streamImg.naturalWidth || 640;
-    canvas.height = streamImg.naturalHeight || 480;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(streamImg, 0, 0);
-    
+    let frameData = "";
     try {
+      if (regSource === 'local') {
+        if (!videoRef.current) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+        frameData = canvas.toDataURL('image/jpeg');
+      } else {
+        const streamImg = document.getElementById('sentinel-enroll-stream');
+        if (!streamImg) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = streamImg.naturalWidth || 640;
+        canvas.height = streamImg.naturalHeight || 480;
+        canvas.getContext('2d').drawImage(streamImg, 0, 0);
+        frameData = canvas.toDataURL('image/jpeg');
+      }
+      
+      if (!frameData) {
+        alert("Failed to capture image data.");
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          owner_id: parseInt(ownerId),
           name: regName,
           role: regRole,
-          image_base64: canvas.toDataURL('image/jpeg')
+          image_base64: frameData
         })
       });
+
       const data = await res.json();
       if (data.status === 'success') {
         alert("Enrollment Successful!");
@@ -133,70 +169,155 @@ function App() {
         alert("Error: " + data.message);
       }
     } catch (e) {
+      console.error("Registration Error:", e);
       alert("Registration failed: " + e.message);
     }
   };
 
   const handleLogin = async () => {
+    if (!email || !mobile || !password) return alert("Please fill all fields");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, mobile, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOwnerId(data.owner_id);
+        setCurrentGymName(data.gym_name);
+        localStorage.setItem('owner_id', data.owner_id);
+        localStorage.setItem('gym_name', data.gym_name);
+        setIsLoggedIn(true);
+      } else {
+        alert(data.detail || "Login failed");
+      }
+    } catch(e) {
+      console.error("Login Error:", e);
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!gymName || !email || !mobile || !password) return alert("Please fill all fields");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_name: gymName, email, mobile, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Sign Up successful! Please Login.");
+        setAuthMode('login');
+      } else {
+        alert(data.detail || "Sign Up failed");
+      }
+    } catch(e) {
+      console.error("Sign Up Error:", e);
+    }
+  };
+
+  const handleUpdateNode = async () => {
     try {
       await fetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: "Gym_Camera", url: cameraUrl || "0" })
       });
+      alert("Node protocol updated successfully!");
     } catch(e) {
-      console.error("Failed to add camera", e);
+      console.error("Failed to update node", e);
+      alert("Update failed");
     }
-    setIsLoggedIn(true);
   };
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen w-full bg-[#020617] flex items-center justify-center p-6 relative">
-        <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center">
+      <div className="min-h-screen w-full bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] rounded-full" />
+        
+        <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
             <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-8">
               <Shield size={32} className="text-white" />
             </div>
             <h1 className="text-3xl font-black heading-font text-white tracking-tighter mb-2">SENTINEL AI</h1>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-10">Cyber access node</p>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-10">
+              {authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}
+            </p>
             
-               <div className="w-full space-y-6">
-                 <div className="space-y-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL ADDRESS</span>
+            <div className="w-full space-y-6">
+                {authMode === 'signup' && (
+                  <div className="space-y-3 animate-in slide-in-from-top-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span>
                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Mail className="text-slate-600 flex-shrink-0" size={18} />
-                      <input type="email" placeholder="owner@gym.com" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
+                      <LayoutList className="text-slate-600 flex-shrink-0" size={18} />
+                      <input 
+                        type="text" 
+                        value={gymName}
+                        onChange={e => setGymName(e.target.value)}
+                        placeholder="Power Fitness Gym" 
+                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                      />
                     </div>
-                 </div>
-                 <div className="space-y-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE NO.</span>
-                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Search className="text-slate-600 flex-shrink-0" size={18} />
-                      <input type="tel" placeholder="+1 234 567 8900" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
-                    </div>
-                 </div>
-                 <div className="space-y-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span>
-                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Lock className="text-slate-600 flex-shrink-0" size={18} />
-                      <input type="password" placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
-                    </div>
-                 </div>
-                 <div className="space-y-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">IP CAMERA LINK (HTTP/RTSP)</span>
-                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Camera className="text-slate-600 flex-shrink-0" size={18} />
-                      <input type="text" value={cameraUrl} onChange={e => setCameraUrl(e.target.value)} placeholder="rtsp://admin:12345@192.168.1.100" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
-                    </div>
-                 </div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL ADDRESS</span>
+                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                    <Mail className="text-slate-600 flex-shrink-0" size={18} />
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="owner@gym.com" 
+                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE NO.</span>
+                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                    <Search className="text-slate-600 flex-shrink-0" size={18} />
+                    <input 
+                      type="tel" 
+                      value={mobile}
+                      onChange={e => setMobile(e.target.value)}
+                      placeholder="+91 8770557655" 
+                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span>
+                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                    <Lock className="text-slate-600 flex-shrink-0" size={18} />
+                    <input 
+                      type="password" 
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••" 
+                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                    />
+                  </div>
+                </div>
             </div>
 
-            <button onClick={handleLogin} className="w-full bg-white text-black py-4.5 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all shadow-xl">
-               INITIALIZE <ArrowRight size={18} />
+            <button 
+              onClick={authMode === 'login' ? handleLogin : handleSignup} 
+              className="w-full bg-white text-black py-4.5 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all shadow-xl active:scale-95"
+            >
+               {authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} />
             </button>
 
-            <button onClick={() => setAuthMode('signup')} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">
-               Create node protocol?
+            <button 
+              onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} 
+              className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors"
+            >
+               {authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}
             </button>
         </div>
       </div>
@@ -214,12 +335,13 @@ function App() {
             <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30">
               <Shield size={18} className="text-white" />
             </div>
-            <h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">Sentinel_AI</h1>
+            <h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">{currentGymName || 'Sentinel_AI'}</h1>
           </div>
 
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
             <button onClick={() => setActiveTab('logs')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'logs' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Activity Logs</button>
             <button onClick={() => setActiveTab('registry')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'registry' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Registry</button>
+            <button onClick={() => setActiveTab('settings')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Settings</button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -237,7 +359,7 @@ function App() {
           <header className="flex justify-between items-end border-b-2 border-white/5 pb-6 text-left">
             <div>
               <h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">
-                {activeTab === 'registry' ? 'Identity Hub' : 'System Logs'}
+                {activeTab === 'registry' ? 'Identity Hub' : activeTab === 'settings' ? 'Node Protocol' : 'System Logs'}
               </h2>
               <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -258,7 +380,7 @@ function App() {
                 <div className="glass-panel bg-white/[0.01] border-white/5 rounded-[40px] flex flex-col min-h-[500px] shadow-2xl">
                    <div className="p-8 pb-4 flex flex-wrap justify-between items-center gap-6">
                       <h3 className="heading-font font-black text-[12px] text-slate-500 tracking-widest uppercase pl-2">
-                        {activeTab === 'registry' ? 'Database_Registry' : 'Full_History'}
+                        {activeTab === 'registry' ? 'Database_Registry' : activeTab === 'settings' ? 'Camera_Configuration' : 'Full_History'}
                       </h3>
                       {(activeTab === 'registry' || activeTab === 'logs') && (
                         <div className="relative">
@@ -290,7 +412,31 @@ function App() {
                                </div>
                             ))}
                          </div>
-                      ) : (
+                      ) : activeTab === 'settings' ? (
+                         <div className="p-8 space-y-12 max-w-2xl">
+                            <div className="space-y-4">
+                               <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2">IP CAMERA LINK (HTTP/RTSP)</label>
+                               <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
+                                 <Camera className="text-slate-600 flex-shrink-0" size={24} />
+                                 <input 
+                                   type="text" 
+                                   value={cameraUrl} 
+                                   onChange={e => setCameraUrl(e.target.value)} 
+                                   placeholder="rtsp://admin:12345@192.168.1.100" 
+                                   className="w-full bg-transparent border-none text-lg text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
+                                 />
+                               </div>
+                               <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider ml-2">Enter the RTSP or HTTP stream URL from your IP camera or mobile device.</p>
+                            </div>
+                            
+                            <button 
+                              onClick={handleUpdateNode}
+                              className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-black heading-font text-sm flex items-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
+                            >
+                               UPDATE PROTOCOL <ArrowRight size={18} />
+                            </button>
+                         </div>
+                       ) : (
                          <div className="divide-y divide-white/5">
                             {logs.map((l, i) => (
                                <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group animate-in slide-in-from-bottom-2 duration-500">
@@ -387,27 +533,39 @@ function App() {
                       </select>
                    </div>
                 </div>
-                <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
+                 <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Capture Source</label>
+                    <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl">
+                       <button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'local' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Laptop Webcam</button>
+                       <button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Phone Camera</button>
+                    </div>
+                 </div>
+
+                 <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
                    <ScannerIcon size={32} /> INITIALIZE SCAN
                 </button>
              </div>
 
              <div className="lg:w-[450px] shrink-0 bg-black relative p-12 flex items-center justify-center">
                 <div className="w-full h-full rounded-[48px] overflow-hidden relative border-4 border-white/10 shadow-[0_0_80px_rgba(59,130,246,0.2)]">
-                   <img 
-                     id="sentinel-enroll-stream"
-                     src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} 
-                     className="w-full h-full object-cover" 
-                     alt="Remote Stream"
-                     crossOrigin="anonymous"
-                     onError={(e) => { e.target.src = "https://via.placeholder.com/640x480?text=Camera+Offline"; }}
-                   />
+                   {regSource === 'local' ? (
+                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] grayscale-[0.2]" />
+                   ) : (
+                     <img 
+                       id="sentinel-enroll-stream"
+                       src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} 
+                       className="w-full h-full object-cover" 
+                       alt="Remote Stream"
+                       crossOrigin="anonymous"
+                       onError={(e) => { e.target.src = "https://via.placeholder.com/640x480?text=Camera+Offline"; }}
+                     />
+                   )}
                    <div className="scanner-overlay !z-10 bg-blue-900/10">
                       <div className="scanner-line !h-[6px] !bg-blue-400 !shadow-[0_0_30px_#3b82f6]"></div>
                       <div className="face-target !border-blue-500/30 !w-[280px] !h-[380px] !border-[3px] !rounded-[80px]"></div>
                       <div className="absolute top-8 left-8 flex items-center gap-4 bg-black/80 px-5 py-2 rounded-2xl backdrop-blur-3xl border border-white/10">
-                          <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_15px_#10b981]" />
-                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">Phone Link Active</span>
+                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${regSource === 'local' ? 'bg-red-600 shadow-[0_0_15px_#dc2626]' : 'bg-emerald-500 shadow-[0_0_15px_#10b981]'}`} />
+                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">{regSource === 'local' ? 'Local Webcam' : 'Phone Link Active'}</span>
                       </div>
                    </div>
                 </div>

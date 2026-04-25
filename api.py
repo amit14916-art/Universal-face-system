@@ -18,7 +18,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from models import RegisteredFace, AttendanceLog
+from models import RegisteredFace, AttendanceLog, GymOwner
 import face_service
 import main as engine # Integrated with the Sentinel Engine
 import base64
@@ -34,6 +34,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "face"
 
 class RegisterRequest(BaseModel):
+    owner_id: int
     name: str
     role: str
     image_base64: str
@@ -48,6 +49,17 @@ class BlacklistRequest(BaseModel):
 class NodeRequest(BaseModel):
     name: str
     url: str
+
+class AuthRequest(BaseModel):
+    email: str
+    mobile: str
+    password: str
+
+class SignupRequest(BaseModel):
+    gym_name: str
+    email: str
+    mobile: str
+    password: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -146,6 +158,38 @@ async def add_node(request: NodeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/auth/signup")
+async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
+    # Check if user already exists
+    result = await db.execute(select(GymOwner).where(GymOwner.email == request.email))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    new_owner = GymOwner(
+        gym_name=request.gym_name,
+        email=request.email,
+        mobile=request.mobile,
+        password=request.password
+    )
+    db.add(new_owner)
+    await db.commit()
+    return {"message": "Account created successfully", "status": "success"}
+
+@app.post("/api/auth/login")
+async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GymOwner).where(GymOwner.email == request.email))
+    owner = result.scalars().first()
+    
+    if not owner or owner.password != request.password or owner.mobile != request.mobile:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    return {
+        "message": "Login successful", 
+        "status": "success", 
+        "owner_id": owner.id,
+        "gym_name": owner.gym_name
+    }
+
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/faces", StaticFiles(directory="static/faces"), name="faces")
@@ -156,12 +200,13 @@ async def root():
     return FileResponse("frontend/dist/index.html")
 
 @app.get("/api/users")
-async def get_users(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RegisteredFace))
+async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RegisteredFace).where(RegisteredFace.owner_id == owner_id))
     users = result.scalars().all()
     return [
         {
             "id": u.id,
+            "owner_id": u.owner_id,
             "name": u.name,
             "role": u.role,
             "image_path": u.image_path,
@@ -173,10 +218,11 @@ async def get_users(db: AsyncSession = Depends(get_db)):
     ]
 
 @app.get("/api/logs")
-async def get_logs(limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
+async def get_logs(owner_id: int, limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
     query = (
         select(AttendanceLog, RegisteredFace.name, RegisteredFace.role, RegisteredFace.image_path)
         .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
+        .where(AttendanceLog.owner_id == owner_id)
         .order_by(AttendanceLog.timestamp.desc())
         .limit(limit)
         .offset(offset)
@@ -270,6 +316,7 @@ async def register_user(request: RegisterRequest, db: AsyncSession = Depends(get
 
         # Save to DB as pure vector
         new_face = RegisteredFace(
+            owner_id=request.owner_id,
             name=request.name,
             role=request.role,
             face_encoding=encoding
