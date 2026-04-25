@@ -7,6 +7,10 @@ import {
 import './index.css';
 import StreamGrid from './components/StreamGrid';
 import TelemetryPanel from './components/TelemetryPanel';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell
+} from 'recharts';
 
 const ScannerIcon = ({ size = 24, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -33,8 +37,8 @@ function App() {
   const videoRef = useRef(null);
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState('member');
-  const [activeTab, setActiveTab] = useState('logs');
-  const [regSource, setRegSource] = useState('local'); // 'local' or 'remote'
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [regSource, setRegSource] = useState('local'); 
 
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
@@ -44,6 +48,7 @@ function App() {
   const [gymName, setGymName] = useState('');
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     if (isLoggedIn && ownerId) {
@@ -58,15 +63,17 @@ function App() {
     try {
       const baseUrl = API_BASE;
       const cacheBuster = `?t=${Date.now()}&owner_id=${ownerId}`;
-      const [lRes, uRes, tRes] = await Promise.all([
+      const [lRes, uRes, tRes, sRes] = await Promise.all([
         fetch(`${baseUrl}/api/logs${cacheBuster}`),
         fetch(`${baseUrl}/api/users${cacheBuster}`),
-        fetch(`${baseUrl}/api/telemetry${cacheBuster}`)
-      ]).catch(() => [null, null, null]);
+        fetch(`${baseUrl}/api/telemetry${cacheBuster}`),
+        fetch(`${baseUrl}/api/stats${cacheBuster}`)
+      ]).catch(() => [null, null, null, null]);
 
       if (lRes && lRes.ok) setLogs(await lRes.json());
       if (uRes && uRes.ok) setUsers(await uRes.json());
       if (tRes && tRes.ok) setTelemetry(await tRes.json());
+      if (sRes && sRes.ok) setStats(await sRes.json());
     } catch (error) {
       console.error("Sync Error:", error);
     }
@@ -390,6 +397,7 @@ function App() {
           </div>
 
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
+            <button onClick={() => setActiveTab('dashboard')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Analytics</button>
             <button onClick={() => setActiveTab('logs')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'logs' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Activity Logs</button>
             <button onClick={() => setActiveTab('registry')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'registry' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Member Registry</button>
             <button onClick={() => setActiveTab('settings')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Node Settings</button>
@@ -410,7 +418,7 @@ function App() {
           <header className="flex justify-between items-end border-b-2 border-white/5 pb-6 text-left">
             <div>
               <h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">
-                {activeTab === 'registry' ? 'MEMBER REGISTRY' : activeTab === 'settings' ? 'NODE SETTINGS' : 'ACTIVITY LOGS'}
+                {activeTab === 'dashboard' ? 'ANALYTICS INSIGHTS' : activeTab === 'registry' ? 'MEMBER REGISTRY' : activeTab === 'settings' ? 'NODE SETTINGS' : 'ACTIVITY LOGS'}
               </h2>
               <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -441,8 +449,76 @@ function App() {
                       )}
                    </div>
 
-                   <div className="flex-1 overflow-y-auto custom-scroll p-4">
-                      {activeTab === 'registry' ? (
+                    <div className="flex-1 overflow-y-auto custom-scroll p-4">
+                       {activeTab === 'dashboard' ? (
+                         <div className="space-y-8 p-4 text-left">
+                           {/* Summary Cards */}
+                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                             {[
+                               { label: 'Total Members', value: stats?.summary?.total_members || 0, icon: Users, color: 'text-blue-500' },
+                               { label: 'Active Plans', value: stats?.summary?.active_members || 0, icon: CheckCircle, color: 'text-emerald-500' },
+                               { label: 'Today Entries', value: stats?.summary?.today_attendance || 0, icon: Activity, color: 'text-purple-500' },
+                               { label: 'Expired', value: stats?.summary?.expired_members || 0, icon: ShieldOff, color: 'text-red-500' }
+                             ].map((card, i) => (
+                               <div key={i} className="glass-panel p-6 bg-white/[0.02] border-white/5 rounded-[32px] flex flex-col gap-2">
+                                 <card.icon className={card.color} size={20} />
+                                 <div className="text-3xl font-black text-white mt-2 tracking-tighter">{card.value}</div>
+                                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{card.label}</div>
+                               </div>
+                             ))}
+                           </div>
+
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                             {/* Weekly Trend Chart */}
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
+                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8">Weekly_Attendance_Trend</h4>
+                               <div className="flex-1 min-h-0">
+                                 <ResponsiveContainer width="100%" height="100%">
+                                   <AreaChart data={stats?.weekly_trend || []}>
+                                     <defs>
+                                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                         <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                                         <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                                       </linearGradient>
+                                     </defs>
+                                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
+                                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
+                                     <Tooltip 
+                                       contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '16px', fontSize: '10px', fontWeight: 900}}
+                                       itemStyle={{color: '#fff'}}
+                                     />
+                                     <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorCount)" />
+                                   </AreaChart>
+                                 </ResponsiveContainer>
+                               </div>
+                             </div>
+
+                             {/* Peak Hours Chart */}
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
+                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8">Today_Peak_Hours</h4>
+                               <div className="flex-1 min-h-0">
+                                 <ResponsiveContainer width="100%" height="100%">
+                                   <BarChart data={stats?.peak_hours || []}>
+                                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                                     <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 8, fontWeight: 900}} />
+                                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
+                                     <Tooltip 
+                                       contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '16px', fontSize: '10px', fontWeight: 900}}
+                                       cursor={{fill: '#ffffff05'}}
+                                     />
+                                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                                       {(stats?.peak_hours || []).map((entry, index) => (
+                                         <Cell key={`cell-${index}`} fill={entry.count > 0 ? '#2563eb' : '#ffffff05'} />
+                                       ))}
+                                     </Bar>
+                                   </BarChart>
+                                 </ResponsiveContainer>
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                       ) : activeTab === 'registry' ? (
                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-fit">
                             {users.map(u => (
                                <div key={u.id} className="glass-panel p-4 flex items-center justify-between border-white/5 hover:border-blue-600/30 transition-all bg-white/[0.015] rounded-[24px] group">

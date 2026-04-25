@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -260,6 +261,71 @@ async def get_logs(owner_id: int, limit: int = 50, offset: int = 0, db: AsyncSes
             "location": log.location
         })
     return logs
+
+@app.get("/api/stats")
+async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=7)
+
+    # 1. Member Stats
+    total_q = await db.execute(select(func.count(RegisteredFace.id)).where(RegisteredFace.owner_id == owner_id))
+    total_members = total_q.scalar()
+
+    active_q = await db.execute(select(func.count(RegisteredFace.id)).where(
+        RegisteredFace.owner_id == owner_id,
+        RegisteredFace.subscription_expiry > now
+    ))
+    active_members = active_q.scalar()
+
+    # 2. Today's Attendance
+    today_q = await db.execute(select(func.count(AttendanceLog.id)).where(
+        AttendanceLog.owner_id == owner_id,
+        AttendanceLog.timestamp >= today_start
+    ))
+    today_count = today_q.scalar()
+
+    # 3. Weekly Trend (Last 7 Days)
+    weekly_trend = []
+    for i in range(7):
+        d_start = today_start - timedelta(days=6-i)
+        d_end = d_start + timedelta(days=1)
+        q = await db.execute(select(func.count(AttendanceLog.id)).where(
+            AttendanceLog.owner_id == owner_id,
+            AttendanceLog.timestamp >= d_start,
+            AttendanceLog.timestamp < d_end
+        ))
+        weekly_trend.append({
+            "day": d_start.strftime("%a"),
+            "count": q.scalar()
+        })
+
+    # 4. Peak Hours Distribution (Today)
+    peak_hours = []
+    for h in range(6, 23): # From 6 AM to 10 PM
+        h_start = today_start.replace(hour=h)
+        h_end = h_start + timedelta(hours=1)
+        q = await db.execute(select(func.count(AttendanceLog.id)).where(
+            AttendanceLog.owner_id == owner_id,
+            AttendanceLog.timestamp >= h_start,
+            AttendanceLog.timestamp < h_end
+        ))
+        peak_hours.append({
+            "hour": f"{h:02d}:00",
+            "count": q.scalar()
+        })
+
+    return {
+        "summary": {
+            "total_members": total_members,
+            "active_members": active_members,
+            "expired_members": total_members - active_members,
+            "today_attendance": today_count
+        },
+        "weekly_trend": weekly_trend,
+        "peak_hours": peak_hours
+    }
 
 @app.put("/api/users/subscription")
 async def update_subscription(request: SubscriptionRequest, db: AsyncSession = Depends(get_db)):
