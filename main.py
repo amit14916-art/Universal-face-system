@@ -80,8 +80,10 @@ class SentinelNode:
             time.sleep(2)
 
         if not self.cap or not self.cap.isOpened():
-            log_print(f"[{self.name}] Error: Permanent failure reaching source {self.source_id}")
+            log_print(f"[{self.name}] FATAL: Could not open stream {self.source_id}. Check if Ngrok is alive and URL is correct.")
             return
+        
+        log_print(f"[{self.name}] Stream Verified. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
 
         # Initialize local detector for thread safety
         detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")

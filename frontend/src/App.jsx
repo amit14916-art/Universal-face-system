@@ -305,7 +305,11 @@ function App() {
       await fetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: "Gym_Camera", url: cameraUrl || "0" })
+        body: JSON.stringify({ 
+          name: "Gym_Camera", 
+          url: cameraUrl || "0",
+          owner_id: parseInt(ownerId) 
+        })
       });
       alert("Node protocol updated successfully!");
     } catch(e) {
