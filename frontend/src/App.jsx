@@ -326,10 +326,7 @@ function App() {
     }
   };
 
-  const [p2pUid, setP2pUid] = useState('');
-  const [p2pUser, setP2pUser] = useState('admin');
-  const [p2pPass, setP2pPass] = useState('');
-  const [useP2P, setUseP2P] = useState(false);
+
 
   const handleUpdateNode = async () => {
     try {
