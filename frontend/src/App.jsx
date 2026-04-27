@@ -59,6 +59,17 @@ function App() {
   const [notifyOnEntry, setNotifyOnEntry] = useState(true);
   const [notifyOnExpiry, setNotifyOnExpiry] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [useP2P, setUseP2P] = useState(false);
+  const [p2pUid, setP2pUid] = useState('');
+  const [p2pUser, setP2pUser] = useState('admin');
+  const [p2pPass, setP2pPass] = useState('');
+
+  useEffect(() => {
+    if (localStorage.getItem('owner_id')) {
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (isLoggedIn && ownerId) {
