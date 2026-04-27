@@ -1007,7 +1007,9 @@ function App() {
                 </div>
              </div>
           </div>
-        </div>      {isRegisterOpen && (
+        </div>      )}
+
+      {isRegisterOpen && (
         <div className="fixed inset-0 bg-[#020617]/98 backdrop-blur-3xl z-[100] flex items-center justify-center p-6 md:p-16">
           <div className="glass-panel w-full max-w-5xl flex flex-col md:flex-row border-white/10 rounded-[64px] shadow-2xl animate-in zoom-in-95 duration-500 border-2 relative">
              
