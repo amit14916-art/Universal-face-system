@@ -42,8 +42,9 @@ function App() {
   const videoRef = useRef(null);
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState('member');
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [regSource, setRegSource] = useState('local'); 
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const fileInputRef = useRef(null);
 
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
@@ -190,6 +191,8 @@ function App() {
         canvas.height = streamImg.naturalHeight || 480;
         canvas.getContext('2d').drawImage(streamImg, 0, 0);
         frameData = canvas.toDataURL('image/jpeg');
+      } else if (regSource === 'file') {
+        frameData = uploadedImage;
       }
       
       if (!frameData) {
@@ -1043,12 +1046,31 @@ function App() {
                       </select>
                    </div>
                 </div>
-                 <div className="space-y-3">
+                </div>
+                <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Capture Source</label>
                     <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl">
                        <button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'local' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Laptop Webcam</button>
                        <button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Phone Camera</button>
+                       <button onClick={() => { closeWebcam(); setRegSource('file'); fileInputRef.current?.click(); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'file' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Upload Photo</button>
                     </div>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setUploadedImage(reader.result);
+                            setRegSource('file');
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
                  </div>
 
                  <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
