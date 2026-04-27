@@ -608,7 +608,7 @@ function App() {
                                          <span className="text-[8px] font-black text-emerald-500 uppercase">Cloud_Sync: OK</span>
                                       </div>
                                       <button 
-                                        onClick={() => window.open(`${API_BASE}/api/export/attendance`, '_blank')}
+                                        onClick={() => window.open(`${API_BASE}/api/export/attendance?owner_id=${ownerId}`, '_blank')}
                                         className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-600/20 text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-blue-500/20 transition-all"
                                       >
                                          <Download size={14} /> Export_Logs

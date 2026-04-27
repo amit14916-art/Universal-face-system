@@ -289,30 +289,38 @@ async def root():
     return FileResponse("frontend/dist/index.html")
 
 @app.get("/api/export/attendance")
-async def export_attendance(db: AsyncSession = Depends(get_db)):
+async def export_attendance(owner_id: int, db: AsyncSession = Depends(get_db)):
     import csv
     import io
     from fastapi.responses import StreamingResponse
     
     result = await db.execute(
-        select(AttendanceLog, RegisteredFace.name)
+        select(AttendanceLog, RegisteredFace.name, RegisteredFace.role)
         .join(RegisteredFace, AttendanceLog.face_id == RegisteredFace.id)
+        .where(AttendanceLog.owner_id == owner_id)
         .order_by(AttendanceLog.timestamp.desc())
     )
     logs = result.all()
     
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Name", "Timestamp", "Node"])
+    writer.writerow(["ID", "Name", "Role", "Timestamp", "Node", "Status"])
     
-    for log, name in logs:
-        writer.writerow([log.id, name, log.timestamp.strftime("%Y-%m-%d %H:%M:%S"), log.node_name])
+    for log, name, role in logs:
+        writer.writerow([
+            log.id, 
+            name, 
+            role, 
+            log.timestamp.strftime("%Y-%m-%d %H:%M:%S"), 
+            log.node_name, 
+            log.subscription_status
+        ])
     
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=attendance_logs.csv"}
+        headers={"Content-Disposition": f"attachment; filename=attendance_{owner_id}.csv"}
     )
 
 @app.get("/api/users")
@@ -648,35 +656,6 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
     return {"message": f"User {user_id} deleted successfully"}
 
-@app.get("/api/export/attendance")
-async def export_attendance(db: AsyncSession = Depends(get_db)):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    
-    result = await db.execute(select(AttendanceLog).order_by(AttendanceLog.timestamp.desc()))
-    logs = result.scalars().all()
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "Name", "Role", "Timestamp", "Location", "Status"])
-    
-    for log in logs:
-        writer.writerow([
-            log.id, 
-            log.name, 
-            log.role, 
-            log.timestamp.isoformat(), 
-            log.location, 
-            log.subscription_status
-        ])
-    
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=attendance_report.csv"}
-    )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

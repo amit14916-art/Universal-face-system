@@ -119,7 +119,7 @@ def extract_face(frame: np.ndarray, enforce_liveness=False):
     
     # Needs a 112x112 face crop aligned for SFace... this is just for manual registration
     model_path = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")
-    detector = cv2.FaceDetectorYN.create(model_path, "", (frame.shape[1], frame.shape[0]), score_threshold=0.5, nms_threshold=0.3)
+    detector = cv2.FaceDetectorYN.create(model_path, "", (frame.shape[1], frame.shape[0]), score_threshold=0.4, nms_threshold=0.3)
     _, faces = detector.detect(frame)
     if faces is None: return []
     
