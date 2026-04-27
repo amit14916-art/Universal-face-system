@@ -1007,11 +1007,7 @@ function App() {
                 </div>
              </div>
           </div>
-        </div>
-      )}
-
-      {/* FULL SCREEN SCANNER */}
-      {isRegisterOpen && (
+        </div>      {isRegisterOpen && (
         <div className="fixed inset-0 bg-[#020617]/98 backdrop-blur-3xl z-[100] flex items-center justify-center p-6 md:p-16">
           <div className="glass-panel w-full max-w-5xl flex flex-col md:flex-row border-white/10 rounded-[64px] shadow-2xl animate-in zoom-in-95 duration-500 border-2 relative">
              
@@ -1045,35 +1041,34 @@ function App() {
                         <option value="government">GOV_VIP</option>
                       </select>
                    </div>
+                   <div className="space-y-3">
+                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Capture Source</label>
+                      <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl">
+                         <button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'local' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Laptop Webcam</button>
+                         <button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Phone Camera</button>
+                         <button onClick={() => { closeWebcam(); setRegSource('file'); fileInputRef.current?.click(); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'file' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Upload Photo</button>
+                      </div>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setUploadedImage(reader.result);
+                              setRegSource('file');
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                   </div>
                 </div>
-                </div>
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Capture Source</label>
-                    <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl">
-                       <button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'local' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Laptop Webcam</button>
-                       <button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Phone Camera</button>
-                       <button onClick={() => { closeWebcam(); setRegSource('file'); fileInputRef.current?.click(); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'file' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Upload Photo</button>
-                    </div>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      className="hidden" 
-                      accept="image/*" 
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setUploadedImage(reader.result);
-                            setRegSource('file');
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                 </div>
 
-                 <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
+                <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
                    <ScannerIcon size={32} /> INITIALIZE SCAN
                 </button>
              </div>
@@ -1082,7 +1077,7 @@ function App() {
                 <div className="w-full h-full rounded-[48px] overflow-hidden relative border-4 border-white/10 shadow-[0_0_80px_rgba(59,130,246,0.2)]">
                    {regSource === 'local' ? (
                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] grayscale-[0.2]" />
-                   ) : (
+                   ) : regSource === 'remote' ? (
                      <img 
                        id="sentinel-enroll-stream"
                        src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} 
@@ -1091,13 +1086,15 @@ function App() {
                        crossOrigin="anonymous"
                        onError={(e) => { e.target.src = "https://via.placeholder.com/640x480?text=Camera+Offline"; }}
                      />
+                   ) : (
+                     <img src={uploadedImage || "https://via.placeholder.com/640x480?text=Select+File"} className="w-full h-full object-cover" alt="Uploaded Preview" />
                    )}
                    <div className="scanner-overlay !z-10 bg-blue-900/10">
                       <div className="scanner-line !h-[6px] !bg-blue-400 !shadow-[0_0_30px_#3b82f6]"></div>
                       <div className="face-target !border-blue-500/30 !w-[280px] !h-[380px] !border-[3px] !rounded-[80px]"></div>
                       <div className="absolute top-8 left-8 flex items-center gap-4 bg-black/80 px-5 py-2 rounded-2xl backdrop-blur-3xl border border-white/10">
-                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${regSource === 'local' ? 'bg-red-600 shadow-[0_0_15px_#dc2626]' : 'bg-emerald-500 shadow-[0_0_15px_#10b981]'}`} />
-                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">{regSource === 'local' ? 'Local Webcam' : 'Phone Link Active'}</span>
+                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${regSource === 'local' ? 'bg-red-600 shadow-[0_0_15px_#dc2626]' : regSource === 'remote' ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-blue-500 shadow-[0_0_15px_#3b82f6]'}`} />
+                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">{regSource === 'local' ? 'Local Webcam' : regSource === 'remote' ? 'Phone Link Active' : 'Manual File Upload'}</span>
                       </div>
                    </div>
                 </div>
