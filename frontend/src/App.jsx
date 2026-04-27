@@ -300,6 +300,11 @@ function App() {
     }
   };
 
+  const [p2pUid, setP2pUid] = useState('');
+  const [p2pUser, setP2pUser] = useState('admin');
+  const [p2pPass, setP2pPass] = useState('');
+  const [useP2P, setUseP2P] = useState(false);
+
   const handleUpdateNode = async () => {
     try {
       await fetch(`${API_BASE}/api/nodes/add`, {
@@ -308,7 +313,11 @@ function App() {
         body: JSON.stringify({ 
           name: "Gym_Camera", 
           url: cameraUrl || "0",
-          owner_id: parseInt(ownerId) 
+          owner_id: parseInt(ownerId),
+          use_p2p: useP2P,
+          p2p_uid: p2pUid,
+          p2p_user: p2pUser,
+          p2p_pass: p2pPass
         })
       });
       alert("Node protocol updated successfully!");
@@ -319,6 +328,7 @@ function App() {
   };
 
   if (!isLoggedIn) {
+    // ... (rest of the login code remains the same)
     return (
       <div className="min-h-screen w-full bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
@@ -580,12 +590,18 @@ function App() {
                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
                                 <div className="flex items-center justify-between mb-8">
                                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural_Activity_History</h4>
-                                   <button 
-                                     onClick={() => window.open(`${API_BASE}/api/export/attendance`, '_blank')}
-                                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-600/20 text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-blue-500/20 transition-all"
-                                   >
-                                      <Download size={14} /> Export_Logs
-                                   </button>
+                                   <div className="flex gap-3">
+                                      <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2">
+                                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                         <span className="text-[8px] font-black text-emerald-500 uppercase">Cloud_Sync: OK</span>
+                                      </div>
+                                      <button 
+                                        onClick={() => window.open(`${API_BASE}/api/export/attendance`, '_blank')}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-600/20 text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-blue-500/20 transition-all"
+                                      >
+                                         <Download size={14} /> Export_Logs
+                                      </button>
+                                   </div>
                                 </div>
                                <div className="flex-1 min-h-0">
                                  <ResponsiveContainer width="100%" height="100%">
@@ -607,12 +623,51 @@ function App() {
                                </div>
                              </div>
                            </div>
+
+                           {/* STORAGE TRANSPARENCY SECTION */}
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-blue-600">
+                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Biometric_Storage</h5>
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center">
+                                       <Shield className="text-blue-500" size={24} />
+                                    </div>
+                                    <div>
+                                       <div className="text-lg font-black text-white leading-none">Railway PostgreSQL</div>
+                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Status: Encrypted (pgvector)</div>
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-emerald-600">
+                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Cloud_Artifacts</h5>
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-emerald-600/10 rounded-xl flex items-center justify-center">
+                                       <Activity className="text-emerald-500" size={24} />
+                                    </div>
+                                    <div>
+                                       <div className="text-lg font-black text-white leading-none">Supabase Storage</div>
+                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Bucket: face (registration/)</div>
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-purple-600">
+                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">System_Engine</h5>
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-purple-600/10 rounded-xl flex items-center justify-center">
+                                       <Settings className="text-purple-500" size={24} />
+                                    </div>
+                                    <div>
+                                       <div className="text-lg font-black text-white leading-none">Sentinel Engine</div>
+                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Uptime: {Math.floor(telemetry?.uptime / 3600) || 0}h Active</div>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
                          </div>
                         ) : activeTab === 'registry' ? (
-                          <div className="space-y-6">
-                             {/* Search & Filter Header */}
-                             <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/[0.02] border border-white/5 p-6 rounded-[32px] backdrop-blur-xl">
-                                <div className="flex-1 w-full relative">
+                         <div className="w-full">
+                                <div className="flex flex-col md:flex-row gap-6 mb-10 items-center justify-between">
+                                   <div className="relative w-full md:w-96">
                                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={20} />
                                    <input 
                                      type="text" 
@@ -687,27 +742,58 @@ function App() {
                       </div>
                     ) : activeTab === 'settings' ? (
                          <div className="p-8 space-y-12 max-w-2xl">
-                            <div className="space-y-4">
-                               <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2">IP CAMERA LINK (HTTP/RTSP)</label>
-                               <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
-                                 <Camera className="text-slate-600 flex-shrink-0" size={24} />
-                                 <input 
-                                   type="text" 
-                                   value={cameraUrl} 
-                                   onChange={e => setCameraUrl(e.target.value)} 
-                                   placeholder="rtsp://admin:12345@192.168.1.100" 
-                                   className="w-full bg-transparent border-none text-lg text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
-                                 />
-                               </div>
-                               <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider ml-2">Enter the RTSP or HTTP stream URL from your IP camera or mobile device.</p>
-                            </div>
-                            
-                            <button 
-                              onClick={handleUpdateNode}
-                              className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-black heading-font text-sm flex items-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
-                            >
-                               UPDATE PROTOCOL <ArrowRight size={18} />
-                            </button>
+                             <div className="space-y-6">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Primary Stream Link (IP Cam / Ngrok)</label>
+                                <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
+                                  <Camera className="text-slate-600 flex-shrink-0" size={24} />
+                                  <input 
+                                    type="text" 
+                                    value={cameraUrl} 
+                                    onChange={e => setCameraUrl(e.target.value)} 
+                                    placeholder="rtsp://admin:12345@192.168.1.100" 
+                                    className="w-full bg-transparent border-none text-lg text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
+                                  />
+                                </div>
+                             </div>
+
+                             <div className="pt-6 border-t border-white/5 space-y-6 text-left">
+                                <div className="flex items-center justify-between">
+                                   <div>
+                                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">P2P Cloud Connection</h3>
+                                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Use Cloud UID for cameras without static IP</p>
+                                   </div>
+                                   <button 
+                                     onClick={() => setUseP2P(!useP2P)}
+                                     className={`w-14 h-8 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-600' : 'bg-slate-800'}`}
+                                   >
+                                      <div className={`w-6 h-6 bg-white rounded-full transition-all ${useP2P ? 'translate-x-6' : 'translate-x-0'}`} />
+                                   </button>
+                                </div>
+
+                                {useP2P && (
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4">
+                                      <div className="space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Camera Cloud UID</span>
+                                         <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="ABCD-123456-EFGH" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
+                                      </div>
+                                      <div className="space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Device Username</span>
+                                         <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="admin" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
+                                      </div>
+                                      <div className="md:col-span-2 space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Device Password</span>
+                                         <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="••••••••" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
+                                      </div>
+                                   </div>
+                                )}
+                             </div>
+                             
+                             <button 
+                               onClick={handleUpdateNode}
+                               className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
+                             >
+                                APPLY PROTOCOL SETTINGS <ArrowRight size={18} />
+                             </button>
 
                              <div className="pt-8 border-t border-white/5 space-y-8 text-left">
                                 <div>

@@ -45,11 +45,15 @@ track_identities = {} # Global map: track_id -> "Name"
 global_nodes = {} # Global registry: node_name -> node_instance
 
 class SentinelNode:
-    def __init__(self, source_id, name="Node", owner_id=None, rotation=None):
+    def __init__(self, source_id, name="Node", owner_id=None, rotation=None, use_p2p=False, p2p_uid="", p2p_user="admin", p2p_pass=""):
         self.source_id = source_id
         self.name = name
         self.owner_id = owner_id
-        self.rotation = rotation # None, cv2.ROTATE_90_CLOCKWISE, etc.
+        self.rotation = rotation 
+        self.use_p2p = use_p2p
+        self.p2p_uid = p2p_uid
+        self.p2p_user = p2p_user
+        self.p2p_pass = p2p_pass
         self.running = False
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
         self.cap = None
@@ -66,13 +70,17 @@ class SentinelNode:
         self.running = False
         if self.cap: self.cap.release()
 
-    def _run(self):
-        log_print(f"[{self.name}] Initializing Stream: {self.source_id}")
+        source = self.source_id
+        if self.use_p2p and self.p2p_uid:
+            source = f"rtsp://{self.p2p_user}:{self.p2p_pass}@{self.p2p_uid}.p2p.cam/live"
+            log_print(f"[{self.name}] Connecting via P2P Cloud ID: {self.p2p_uid}")
+        else:
+            log_print(f"[{self.name}] Initializing Stream: {source}")
         
         # Retry loop for robust connection (especially for IP cameras)
         max_retries = 5
         for i in range(max_retries):
-            self.cap = cv2.VideoCapture(self.source_id)
+            self.cap = cv2.VideoCapture(source)
             if self.cap.isOpened():
                 log_print(f"[{self.name}] Successfully connected to stream.")
                 break

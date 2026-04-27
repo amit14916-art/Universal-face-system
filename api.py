@@ -51,6 +51,10 @@ class NodeRequest(BaseModel):
     name: str
     url: str
     owner_id: int
+    use_p2p: bool = False
+    p2p_uid: str = ""
+    p2p_user: str = "admin"
+    p2p_pass: str = ""
 
 class AuthRequest(BaseModel):
     identifier: str
@@ -207,7 +211,11 @@ async def add_node(request: NodeRequest):
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
                 url = url.rstrip('/') + '/video'
 
-        node = engine.SentinelNode(url, request.name, owner_id=request.owner_id, rotation=None)
+        node = engine.SentinelNode(
+            url, request.name, owner_id=request.owner_id, rotation=None,
+            use_p2p=request.use_p2p, p2p_uid=request.p2p_uid,
+            p2p_user=request.p2p_user, p2p_pass=request.p2p_pass
+        )
         node.start()
         engine.global_nodes[request.name] = node
         return {"message": f"Node {request.name} added successfully."}
