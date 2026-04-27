@@ -222,6 +222,22 @@ async def add_node(request: NodeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/nodes/settings")
+async def get_node_settings(owner_id: int):
+    # Find the node for this owner in engine.global_nodes
+    # For now, we assume one node per owner or just return the first one found
+    for name, node in engine.global_nodes.items():
+        if node.owner_id == owner_id:
+            return {
+                "name": node.node_name,
+                "url": str(node.rtsp_url),
+                "use_p2p": node.use_p2p,
+                "p2p_uid": node.p2p_uid,
+                "p2p_user": node.p2p_user,
+                "p2p_pass": node.p2p_pass
+            }
+    return {"message": "No active node found for this owner"}
+
 @app.post("/api/auth/signup")
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
     # Check if user already exists
@@ -631,6 +647,36 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(user)
     await db.commit()
     return {"message": f"User {user_id} deleted successfully"}
+
+@app.get("/api/export/attendance")
+async def export_attendance(db: AsyncSession = Depends(get_db)):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    result = await db.execute(select(AttendanceLog).order_by(AttendanceLog.timestamp.desc()))
+    logs = result.scalars().all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Name", "Role", "Timestamp", "Location", "Status"])
+    
+    for log in logs:
+        writer.writerow([
+            log.id, 
+            log.name, 
+            log.role, 
+            log.timestamp.isoformat(), 
+            log.location, 
+            log.subscription_status
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=attendance_report.csv"}
+    )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -98,6 +98,18 @@ function App() {
         setNotifyOnEntry(data.notify_on_entry);
         setNotifyOnExpiry(data.notify_on_expiry);
       }
+      
+      const nRes = await fetch(`${API_BASE}/api/nodes/settings?owner_id=${ownerId}`);
+      if (nRes.ok) {
+        const nData = await nRes.json();
+        if (nData.url) {
+          setCameraUrl(nData.url);
+          setUseP2P(nData.use_p2p || false);
+          setP2pUid(nData.p2p_uid || '');
+          setP2pUser(nData.p2p_user || 'admin');
+          setP2pPass(nData.p2p_pass || '');
+        }
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -704,7 +716,7 @@ function App() {
                                <div key={u.id} className="glass-panel p-4 flex items-center justify-between border-white/5 hover:border-blue-600/30 transition-all bg-white/[0.015] rounded-[24px] group">
                                   <div className="flex items-center gap-4 text-left">
                                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5 relative shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                        <img src={`${API_BASE}/${u.image_path}`} className="w-full h-full object-cover" alt="" />
+                                        <img src={u.image_path?.startsWith('http') ? u.image_path : `${API_BASE}/${u.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Face"; }} className="w-full h-full object-cover" alt="" />
                                         {u.is_blacklisted && <div className="absolute inset-0 bg-red-600/40 backdrop-blur-[1px] flex items-center justify-center"><ShieldOff size={20} className="text-white" /></div>}
                                      </div>
                                      <div className="flex flex-col">
@@ -856,7 +868,7 @@ function App() {
                                <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group animate-in slide-in-from-bottom-2 duration-500">
                                   <div className="flex items-center gap-6 text-left">
                                      <div className="w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5 shadow-2xl shrink-0 group-hover:border-blue-600/20 transition-all duration-500">
-                                        <img src={`${API_BASE}/${l.image_path}`} className="w-full h-full object-cover" alt="" />
+                                        <img src={l.image_path?.startsWith('http') ? l.image_path : `${API_BASE}/${l.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Scan"; }} className="w-full h-full object-cover" alt="" />
                                      </div>
                                      <div>
                                         <div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div>
@@ -898,7 +910,7 @@ function App() {
              
              <div className="flex items-center gap-6 mb-12">
                 <div className="w-20 h-20 rounded-[28px] overflow-hidden border-4 border-white/10 shadow-2xl">
-                   <img src={`${API_BASE}/${editingUser.image_path}`} className="w-full h-full object-cover" alt="" />
+                   <img src={editingUser.image_path?.startsWith('http') ? editingUser.image_path : `${API_BASE}/${editingUser.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Face"; }} className="w-full h-full object-cover" alt="" />
                 </div>
                 <div>
                    <h2 className="text-3xl font-black heading-font text-white tracking-tight leading-none">MEMBER_PROTOCOL</h2>
