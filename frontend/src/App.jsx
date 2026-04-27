@@ -183,7 +183,7 @@ function App() {
         canvas.height = videoRef.current.videoHeight;
         canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
         frameData = canvas.toDataURL('image/jpeg');
-      } else {
+      } else if (regSource === 'remote') {
         const streamImg = document.getElementById('sentinel-enroll-stream');
         if (!streamImg) return;
         const canvas = document.createElement('canvas');
