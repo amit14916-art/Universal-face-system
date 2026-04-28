@@ -54,6 +54,10 @@ class SentinelNode:
         self.p2p_uid = p2p_uid
         self.p2p_user = p2p_user
         self.p2p_pass = p2p_pass
+        self.use_onvif = False
+        self.onvif_port = 80
+        self.onvif_user = "admin"
+        self.onvif_pass = ""
         self.running = False
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
         self.cap = None

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from models import RegisteredFace, AttendanceLog, GymOwner
 import face_service
 import main as engine # Integrated with the Sentinel Engine
+import onvif_utils
 import base64
 import numpy as np
 import cv2
@@ -55,6 +56,10 @@ class NodeRequest(BaseModel):
     p2p_uid: str = ""
     p2p_user: str = "admin"
     p2p_pass: str = ""
+    use_onvif: bool = False
+    onvif_port: int = 80
+    onvif_user: str = "admin"
+    onvif_pass: str = ""
 
 class AuthRequest(BaseModel):
     identifier: str
@@ -205,7 +210,21 @@ async def add_node(request: NodeRequest):
         await asyncio.sleep(1) # Give it a second to release the camera
         
     try:
-        url = int(request.url) if request.url.isdigit() else request.url
+        final_url = request.url
+        
+        # ONVIF Discovery Logic
+        if request.use_onvif:
+            logger.info(f"Attempting ONVIF discovery for {request.url}:{request.onvif_port}")
+            discovered_url = await onvif_utils.get_onvif_rtsp_url(
+                request.url, request.onvif_port, request.onvif_user, request.onvif_pass
+            )
+            if discovered_url:
+                logger.info(f"ONVIF Discovered URL: {discovered_url}")
+                final_url = discovered_url
+            else:
+                logger.warning("ONVIF Discovery failed, falling back to manual URL")
+
+        url = int(final_url) if str(final_url).isdigit() else final_url
         if isinstance(url, str) and url.startswith("http"):
             # Auto-append /video if user forgets it for IP Webcam
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
@@ -216,10 +235,15 @@ async def add_node(request: NodeRequest):
             use_p2p=request.use_p2p, p2p_uid=request.p2p_uid,
             p2p_user=request.p2p_user, p2p_pass=request.p2p_pass
         )
+        node.use_onvif = request.use_onvif
+        node.onvif_port = request.onvif_port
+        node.onvif_user = request.onvif_user
+        node.onvif_pass = request.onvif_pass
         node.start()
         engine.global_nodes[request.name] = node
-        return {"message": f"Node {request.name} added successfully."}
+        return {"message": f"Node {request.name} added successfully.", "onvif_success": request.use_onvif and final_url != request.url}
     except Exception as e:
+        logger.error(f"Error adding node: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/nodes/settings")
@@ -234,7 +258,11 @@ async def get_node_settings(owner_id: int):
                 "use_p2p": node.use_p2p,
                 "p2p_uid": node.p2p_uid,
                 "p2p_user": node.p2p_user,
-                "p2p_pass": node.p2p_pass
+                "p2p_pass": node.p2p_pass,
+                "use_onvif": getattr(node, 'use_onvif', False),
+                "onvif_port": getattr(node, 'onvif_port', 80),
+                "onvif_user": getattr(node, 'onvif_user', 'admin'),
+                "onvif_pass": getattr(node, 'onvif_pass', '')
             }
     return {"message": "No active node found for this owner"}
 

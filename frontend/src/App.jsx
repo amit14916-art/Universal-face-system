@@ -64,6 +64,10 @@ function App() {
   const [p2pUid, setP2pUid] = useState('');
   const [p2pUser, setP2pUser] = useState('admin');
   const [p2pPass, setP2pPass] = useState('');
+  const [useOnvif, setUseOnvif] = useState(false);
+  const [onvifPort, setOnvifPort] = useState(80);
+  const [onvifUser, setOnvifUser] = useState('admin');
+  const [onvifPass, setOnvifPass] = useState('');
 
   useEffect(() => {
     if (localStorage.getItem('owner_id')) {
@@ -120,6 +124,10 @@ function App() {
           setP2pUid(nData.p2p_uid || '');
           setP2pUser(nData.p2p_user || 'admin');
           setP2pPass(nData.p2p_pass || '');
+          setUseOnvif(nData.use_onvif || false);
+          setOnvifPort(nData.onvif_port || 80);
+          setOnvifUser(nData.onvif_user || 'admin');
+          setOnvifPass(nData.onvif_pass || '');
         }
       }
     } catch (e) { console.error(e); }
@@ -340,7 +348,11 @@ function App() {
           use_p2p: useP2P,
           p2p_uid: p2pUid,
           p2p_user: p2pUser,
-          p2p_pass: p2pPass
+          p2p_pass: p2pPass,
+          use_onvif: useOnvif,
+          onvif_port: parseInt(onvifPort),
+          onvif_user: onvifUser,
+          onvif_pass: onvifPass
         })
       });
       alert("Node protocol updated successfully!");
@@ -806,6 +818,38 @@ function App() {
                                       <div className="md:col-span-2 space-y-3">
                                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Device Password</span>
                                          <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="••••••••" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
+                                      </div>
+                                   </div>
+                                )}
+                             </div>
+
+                             <div className="pt-6 border-t border-white/5 space-y-6 text-left">
+                                <div className="flex items-center justify-between">
+                                   <div>
+                                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">ONVIF Auto-Discovery</h3>
+                                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Automatically fetch RTSP URL from IP camera</p>
+                                   </div>
+                                   <button 
+                                     onClick={() => setUseOnvif(!useOnvif)}
+                                     className={`w-14 h-8 rounded-full p-1 transition-all ${useOnvif ? 'bg-emerald-600' : 'bg-slate-800'}`}
+                                   >
+                                      <div className={`w-6 h-6 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-6' : 'translate-x-0'}`} />
+                                   </button>
+                                </div>
+
+                                {useOnvif && (
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4">
+                                      <div className="space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF Port</span>
+                                         <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="80" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
+                                      </div>
+                                      <div className="space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF User</span>
+                                         <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="admin" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
+                                      </div>
+                                      <div className="md:col-span-2 space-y-3">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF Password</span>
+                                         <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="••••••••" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
                                       </div>
                                    </div>
                                 )}

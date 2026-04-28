@@ -14,3 +14,4 @@ scipy
 google-cloud-vision
 supabase
 httpx
+onvif-zeep
