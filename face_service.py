@@ -241,25 +241,39 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
         
         return new_person.id, v_name
 
+background_tasks = set()
+
 async def trigger_notification(owner_id, user, event_type, session):
     from models import GymOwner
     result = await session.execute(select(GymOwner).where(GymOwner.id == owner_id))
     owner = result.scalars().first()
     if not owner or not owner.webhook_url: return
+    
+    # Respect Notification Settings
+    if event_type == "Entry Success" and not getattr(owner, 'notify_on_entry', True):
+        return
+    if event_type == "Membership Expired" and not getattr(owner, 'notify_on_expiry', True):
+        return
 
     message = f"🔔 *Sentinel Alert: {event_type}*\n👤 Name: {user.name}\n📍 Location: Gym Entrance\n⏰ Time: {datetime.now().strftime('%H:%M:%S')}"
     if event_type == "Membership Expired":
-        message += f"\n⚠️ *Action Required: Membership expired on {user.subscription_expiry.strftime('%d-%m-%Y')}*"
+        if user.subscription_expiry:
+            message += f"\n⚠️ *Action Required: Membership expired on {user.subscription_expiry.strftime('%d-%m-%Y')}*"
+        else:
+            message += f"\n⚠️ *Action Required: No active membership found.*"
 
     # Async Non-blocking notification
     async def send_webhook():
         try:
             async with httpx.AsyncClient() as client:
-                await client.post(owner.webhook_url, json={"text": message, "content": message}, timeout=5)
+                headers = {"Content-Type": "application/json", "User-Agent": "SentinelAI/1.0"}
+                await client.post(owner.webhook_url, json={"text": message, "content": message}, headers=headers, timeout=5)
         except Exception as e:
             print(f"Webhook Error: {e}")
     
-    asyncio.create_task(send_webhook())
+    task = asyncio.create_task(send_webhook())
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
 
 
 async def save_face_image(id_val, crop_img):
