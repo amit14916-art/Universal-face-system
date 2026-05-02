@@ -68,6 +68,10 @@ function App() {
   const [onvifPort, setOnvifPort] = useState(80);
   const [onvifUser, setOnvifUser] = useState('admin');
   const [onvifPass, setOnvifPass] = useState('');
+  const [isWebcamNodeActive, setIsWebcamNodeActive] = useState(false);
+  const [browserStream, setBrowserStream] = useState(null);
+  const browserVideoRef = useRef(null);
+  const [lastRecognition, setLastRecognition] = useState(null);
 
   useEffect(() => {
     if (localStorage.getItem('owner_id')) {
@@ -136,6 +140,63 @@ function App() {
   useEffect(() => {
     if (isLoggedIn && ownerId) fetchSettings();
   }, [isLoggedIn, ownerId]);
+
+  // --- BROWSER WEBCAM NODE LOGIC ---
+  useEffect(() => {
+    let interval;
+    if (isWebcamNodeActive) {
+      const startWebcam = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+          setBrowserStream(stream);
+          if (browserVideoRef.current) browserVideoRef.current.srcObject = stream;
+          
+          // Recognition Loop
+          interval = setInterval(async () => {
+            if (browserVideoRef.current) {
+              const canvas = document.createElement('canvas');
+              canvas.width = browserVideoRef.current.videoWidth;
+              canvas.height = browserVideoRef.current.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(browserVideoRef.current, 0, 0);
+              const base64 = canvas.toDataURL('image/jpeg', 0.7);
+              
+              try {
+                const res = await fetch(`${API_BASE}/api/recognize/crop`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    image_base64: base64,
+                    node_name: "BROWSER_WEBCAM",
+                    owner_id: parseInt(ownerId)
+                  })
+                });
+                const data = await res.json();
+                if (data.status === 'success' && data.name !== 'Scanning...') {
+                  setLastRecognition(data);
+                  setTimeout(() => setLastRecognition(null), 5000);
+                }
+              } catch (e) { console.error("Recognition Error:", e); }
+            }
+          }, 3000); // Check every 3 seconds
+        } catch (e) {
+          console.error("Webcam Error:", e);
+          setIsWebcamNodeActive(false);
+        }
+      };
+      startWebcam();
+    } else {
+      if (browserStream) {
+        browserStream.getTracks().forEach(t => t.stop());
+        setBrowserStream(null);
+      }
+      clearInterval(interval);
+    }
+    return () => {
+      if (browserStream) browserStream.getTracks().forEach(t => t.stop());
+      clearInterval(interval);
+    };
+  }, [isWebcamNodeActive]);
 
   const saveNotificationSettings = async () => {
     setIsSavingSettings(true);
@@ -577,9 +638,55 @@ function App() {
                    </div>
 
                     <div className="flex-1 overflow-y-auto custom-scroll p-4">
-                       {activeTab === 'dashboard' ? (
-                         <div className="space-y-8 p-4 text-left">
-                           {/* Summary Cards */}
+                        {activeTab === 'dashboard' ? (
+                          <div className="space-y-8 p-4 text-left">
+                            {/* Live Surveillance Grid */}
+                            <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-b-4 border-b-blue-600/30">
+                              <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center">
+                                    <Activity className="text-blue-500" size={20} />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-lg font-black text-white uppercase tracking-tighter">Live_Surveillance_Feed</h3>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Active Neural Tracking Nodes</p>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => setIsWebcamNodeActive(!isWebcamNodeActive)}
+                                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${isWebcamNodeActive ? 'bg-red-600 text-white shadow-lg' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'}`}
+                                >
+                                  <Camera size={14} /> {isWebcamNodeActive ? 'Disconnect Browser Webcam' : 'Connect Browser Webcam'}
+                                </button>
+                              </div>
+                              
+                              <div className="flex flex-col lg:flex-row gap-8">
+                                <div className="flex-1">
+                                  <StreamGrid telemetry={telemetry} />
+                                </div>
+                                
+                                {isWebcamNodeActive && (
+                                  <div className="lg:w-[350px] shrink-0">
+                                    <div className="glass-panel aspect-video rounded-[32px] overflow-hidden relative border-2 border-blue-600/30 shadow-2xl">
+                                      <video ref={browserVideoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale-[0.2]" />
+                                      <div className="absolute inset-0 bg-blue-600/10 pointer-events-none" />
+                                      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+                                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse" />
+                                        <span className="text-[8px] font-black text-white uppercase tracking-widest">LOCAL_BROWSER_NODE</span>
+                                      </div>
+                                      {lastRecognition && (
+                                        <div className="absolute bottom-4 left-4 right-4 bg-blue-600/90 backdrop-blur-md p-4 rounded-2xl border border-white/20 animate-in slide-in-from-bottom-4">
+                                          <div className="text-[8px] font-black text-white/70 uppercase tracking-widest mb-1">Identity Confirmed</div>
+                                          <div className="text-sm font-black text-white">{lastRecognition.name}</div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Summary Cards */}
                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                              {[
                                { label: 'Total Members', value: stats?.summary?.total_members || 0, icon: Users, color: 'text-blue-500' },

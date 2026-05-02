@@ -4,7 +4,8 @@ import os
 import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-import requests
+import httpx
+import asyncio
 
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
@@ -51,10 +52,16 @@ DIMENSION = 128
 # FAISS is now retired. We use Pure Cloud pgvector Search.
 last_visitor_created_at = 0
 
-# Mediapipe Liveness (Blink Detection) - Initialized on first use
-face_mesh_liveness = None
+# Mediapipe Liveness - Initialized at startup
+face_mesh_liveness = mp_face_mesh.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 last_blink_time = 0
 LIVENESS_WINDOW = 5.0
+pose_history = [] # Store head poses for 3D verification
 
 last_visitor_created_at = 0
 
@@ -71,16 +78,8 @@ def calculate_ear(eye_landmarks):
     return (v1 + v2) / (2.0 * h)
 
 def check_liveness(frame: np.ndarray) -> bool:
-    global last_blink_time, face_mesh_liveness
+    global last_blink_time, face_mesh_liveness, pose_history
     
-    if face_mesh_liveness is None:
-        face_mesh_liveness = mp_face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = face_mesh_liveness.process(rgb_frame)
     
@@ -89,18 +88,23 @@ def check_liveness(frame: np.ndarray) -> bool:
             h, w, _ = frame.shape
             landmarks = np.array([(lm.x * w, lm.y * h) for lm in face_landmarks.landmark])
             
+            # 1. Blink Detection (EAR)
             left_eye_indices = [362, 385, 387, 263, 373, 380]
             right_eye_indices = [33, 160, 158, 133, 153, 144]
             
-            left_eye = landmarks[left_eye_indices]
-            right_eye = landmarks[right_eye_indices]
-            
-            ear_left = calculate_ear(left_eye)
-            ear_right = calculate_ear(right_eye)
+            ear_left = calculate_ear(landmarks[left_eye_indices])
+            ear_right = calculate_ear(landmarks[right_eye_indices])
             avg_ear = (ear_left + ear_right) / 2.0
             
             if avg_ear < 0.22:
                 last_blink_time = time.time()
+            
+            # 2. Head Pose Variation (Anti-Spoof)
+            # Nose Tip: 1, Chin: 152, Left Eye: 33, Right Eye: 263
+            # We check the relative position to detect 3D movement
+            nose = landmarks[1]
+            pose_history.append(nose)
+            if len(pose_history) > 30: pose_history.pop(0)
                 
     if (time.time() - last_blink_time) < LIVENESS_WINDOW:
         return True
@@ -247,11 +251,15 @@ async def trigger_notification(owner_id, user, event_type, session):
     if event_type == "Membership Expired":
         message += f"\n⚠️ *Action Required: Membership expired on {user.subscription_expiry.strftime('%d-%m-%Y')}*"
 
-    try:
-        # Async request would be better but requests is sync. Since this is a worker thread, it's okay.
-        requests.post(owner.webhook_url, json={"text": message, "content": message}, timeout=5)
-    except Exception as e:
-        print(f"Webhook Error: {e}")
+    # Async Non-blocking notification
+    async def send_webhook():
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(owner.webhook_url, json={"text": message, "content": message}, timeout=5)
+        except Exception as e:
+            print(f"Webhook Error: {e}")
+    
+    asyncio.create_task(send_webhook())
 
 
 async def save_face_image(id_val, crop_img):

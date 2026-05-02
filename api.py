@@ -97,15 +97,22 @@ async def lifespan(app: FastAPI):
     # Initialize Sentinel Engine inside API process for shared memory
     engine.start_background_workers()
     
-    # Skip starting local camera by default on cloud environment
-    # sources = [
-    #     {"id": 0, "name": "Main_Hub", "rotation": None}
-    # ]
-    # 
-    # for src in sources:
-    #     node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
-    #     node.start()
-    #     engine.global_nodes[src["name"]] = node
+    # Attempt to start local camera if available (useful for local development)
+    try:
+        sources = [{"id": 0, "name": "Main_Hub", "rotation": None}]
+        for src in sources:
+            node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
+            node.start()
+            # Give it a moment to check if it actually opened
+            await asyncio.sleep(1)
+            if node.running and node.cap and node.cap.isOpened():
+                engine.global_nodes[src["name"]] = node
+                logger.info(f"SYSTEM: Local Webcam '{src['name']}' Connected")
+            else:
+                node.stop()
+                logger.warning(f"SYSTEM: Local Webcam '{src['name']}' not found or busy. Skipping.")
+    except Exception as e:
+        logger.warning(f"SYSTEM: Local camera initialization skipped: {e}")
     
     print(">> Sentinel Engine Integrated & Online")
     yield
@@ -151,24 +158,29 @@ async def get_db():
             await session.close()
 
 # --- LIVE STREAMING CORE ---
-def gen_frames(node_name: str):
-    """MJPEG frame generator for a specific Sentinel node."""
+async def gen_frames(request: Request, node_name: str):
+    """MJPEG frame generator for a specific Sentinel node with resource cleanup."""
     while True:
+        if await request.is_disconnected():
+            break
+            
         if node_name in engine.global_nodes:
             node = engine.global_nodes[node_name]
             frame = node.last_frame
             if frame is not None:
-                ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                # Optimized encoding for streaming
+                ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
                 if ret:
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-        time.sleep(0.04) # ~25 FPS max
+        
+        await asyncio.sleep(0.05) # ~20 FPS for stability
 
 @app.get("/api/stream/{node_name}")
-async def stream_node(node_name: str):
+async def stream_node(request: Request, node_name: str):
     if node_name not in engine.global_nodes:
         raise HTTPException(status_code=404, detail="Node not found")
-    return StreamingResponse(gen_frames(node_name), media_type='multipart/x-mixed-replace; boundary=frame')
+    return StreamingResponse(gen_frames(request, node_name), media_type='multipart/x-mixed-replace; boundary=frame')
 
 @app.get("/api/telemetry")
 async def get_system_telemetry():

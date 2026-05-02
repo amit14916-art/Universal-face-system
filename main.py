@@ -42,6 +42,7 @@ def run_async(coro):
 # --- Multi-Camera Sentinel Architecture ---
 shared_job_queue = queue.Queue(maxsize=100) # Increased to handle multiple faces simultaneously
 track_identities = {} # Global map: track_id -> "Name"
+_identity_lock = threading.Lock()
 global_nodes = {} # Global registry: node_name -> node_instance
 
 class SentinelNode:
@@ -72,8 +73,10 @@ class SentinelNode:
 
     def stop(self):
         self.running = False
-        if self.cap: self.cap.release()
+        if self.cap:
+            self.cap.release()
 
+    def _run(self):
         source = self.source_id
         if self.use_p2p and self.p2p_uid:
             source = f"rtsp://{self.p2p_user}:{self.p2p_pass}@{self.p2p_uid}.p2p.cam/live"
@@ -93,6 +96,7 @@ class SentinelNode:
 
         if not self.cap or not self.cap.isOpened():
             log_print(f"[{self.name}] FATAL: Could not open stream {self.source_id}. Check if Ngrok is alive and URL is correct.")
+            self.running = False
             return
         
         log_print(f"[{self.name}] Stream Verified. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
@@ -115,7 +119,7 @@ class SentinelNode:
                     log_print(f"[{self.name}] Connection lost. Attempting auto-reconnect...")
                     self.cap.release()
                     time.sleep(2)
-                    self.cap = cv2.VideoCapture(self.source_id)
+                    self.cap = cv2.VideoCapture(source)
                     failed_frames = 0
                 else:
                     time.sleep(0.1)
@@ -168,7 +172,8 @@ class SentinelNode:
                 l, t, r, b = map(int, ltrb)
                 l, t, r, b = max(0, l), max(0, t), min(w, r), min(h, b)
                 
-                name = track_identities.get(node_track_id, "Scanning...")
+                with _identity_lock:
+                    name = track_identities.get(node_track_id, "Scanning...")
                 
                 if name in ["Scanning...", "Blink to Verify", "Wait...", "Blurry...", "Aligning..."] and not shared_job_queue.full():
                     margin_w = int((r - l) * 0.2)
@@ -178,7 +183,8 @@ class SentinelNode:
                     
                     crop = frame[mt:mb, ml:mr].copy()
                     if crop.size > 0:
-                        track_identities[node_track_id] = "Detecting..."
+                        with _identity_lock:
+                            track_identities[node_track_id] = "Detecting..."
                         shared_job_queue.put((node_track_id, crop, (ml, mt, mr-ml, mb-mt), frame.copy(), self.name, self.owner_id))
                 
                 # Visuals
@@ -207,7 +213,8 @@ class SentinelNode:
                 frame_count = 0
                 start_time = time.time()
 
-        self.cap.release()
+        if self.cap:
+            self.cap.release()
 
 async def process_single_crop(crop_img, location, owner_id, db):
     """Bridge for the Edge Agent to process individual face crops."""
@@ -238,10 +245,12 @@ def processing_worker():
         track_id, crop_img, bbox, full_frame, location, owner_id = job
         try:
             face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location, owner_id))
-            track_identities[track_id] = name
+            with _identity_lock:
+                track_identities[track_id] = name
         except Exception as e:
             log_print(f"Worker Error: {e}")
-            track_identities[track_id] = "Scanning..."
+            with _identity_lock:
+                track_identities[track_id] = "Scanning..."
 
 # Spawn a thread pool to handle faces in parallel - Reduced for cloud stability
 NUM_WORKERS = 2
