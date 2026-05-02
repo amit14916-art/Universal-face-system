@@ -247,7 +247,8 @@ def get_telemetry():
             "fps": round(node.fps, 1),
             "active_tracks": node.active_tracks,
             "status": node.status,
-            "source": str(node.source_id)
+            "source": str(node.source_id),
+            "live_detections": getattr(node, 'live_detections', [])
         } for name, node in global_nodes.items()
     }
 
@@ -261,6 +262,29 @@ def processing_worker():
             face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location, owner_id))
             with _identity_lock:
                 track_identities[track_id] = name
+            
+            # Store live crop for dashboard autocapture
+            if name not in ["Scanning...", "Wait...", "Blurry...", "Aligning...", "Too far", "Error"]:
+                import base64
+                _, buffer = cv2.imencode('.jpg', crop_img)
+                b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
+                
+                if location in global_nodes:
+                    node = global_nodes[location]
+                    if not hasattr(node, 'live_detections'):
+                        node.live_detections = []
+                    
+                    # Prevent spamming the same track ID
+                    if not any(d['id'] == track_id for d in node.live_detections):
+                        from datetime import datetime
+                        node.live_detections.insert(0, {
+                            "id": track_id, 
+                            "name": name, 
+                            "img": b64, 
+                            "time": datetime.now().isoformat()
+                        })
+                        node.live_detections = node.live_detections[:5] # Keep last 5
+                        
         except Exception as e:
             log_print(f"Worker Error: {e}")
             with _identity_lock:
