@@ -85,17 +85,26 @@ class SentinelNode:
             log_print(f"[{self.name}] Initializing Stream: {source}")
         
         # Retry loop for robust connection (especially for IP cameras)
-        max_retries = 5
+        max_retries = 10 
+        connected = False
         for i in range(max_retries):
+            log_print(f"[{self.name}] Connection attempt {i+1}/{max_retries}...")
             self.cap = cv2.VideoCapture(source)
+            
             if self.cap.isOpened():
-                log_print(f"[{self.name}] Successfully connected to stream.")
-                break
-            log_print(f"[{self.name}] Connection attempt {i+1} failed. Retrying...")
-            time.sleep(2)
+                ret, frame = self.cap.read()
+                if ret:
+                    log_print(f"[{self.name}] Successfully connected and verified stream.")
+                    connected = True
+                    break
+                else:
+                    log_print(f"[{self.name}] Connected but stream empty. Retrying...")
+            
+            log_print(f"[{self.name}] Connection attempt {i+1} failed. Retrying in 3s...")
+            time.sleep(3)
 
-        if not self.cap or not self.cap.isOpened():
-            log_print(f"[{self.name}] FATAL: Could not open stream {self.source_id}. Check if Ngrok is alive and URL is correct.")
+        if not connected:
+            log_print(f"[{self.name}] FATAL: Could not open stream {source}. Please check URL/Network.")
             self.running = False
             return
         

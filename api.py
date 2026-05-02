@@ -219,10 +219,11 @@ async def add_node(request: NodeRequest):
     if request.name in engine.global_nodes:
         logger.info(f"Stopping existing node: {request.name}")
         engine.global_nodes[request.name].stop()
-        await asyncio.sleep(1) # Give it a second to release the camera
+        await asyncio.sleep(2) # Extended wait for hardware release
         
     try:
         final_url = request.url
+        node_name = request.name if request.name else "Gym_Camera" # Default name
         
         # ONVIF Discovery Logic
         if request.use_onvif:
@@ -242,8 +243,9 @@ async def add_node(request: NodeRequest):
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
                 url = url.rstrip('/') + '/video'
 
+        logger.info(f"Registering Node: {node_name} with source: {url}")
         node = engine.SentinelNode(
-            url, request.name, owner_id=request.owner_id, rotation=None,
+            url, node_name, owner_id=request.owner_id, rotation=None,
             use_p2p=request.use_p2p, p2p_uid=request.p2p_uid,
             p2p_user=request.p2p_user, p2p_pass=request.p2p_pass
         )
@@ -252,8 +254,12 @@ async def add_node(request: NodeRequest):
         node.onvif_user = request.onvif_user
         node.onvif_pass = request.onvif_pass
         node.start()
-        engine.global_nodes[request.name] = node
-        return {"message": f"Node {request.name} added successfully.", "onvif_success": request.use_onvif and final_url != request.url}
+        
+        # Explicitly save to global registry
+        engine.global_nodes[node_name] = node
+        logger.info(f"Node {node_name} added to global registry. Current nodes: {list(engine.global_nodes.keys())}")
+        
+        return {"message": f"Node {node_name} added successfully.", "onvif_success": request.use_onvif and final_url != request.url}
     except Exception as e:
         logger.error(f"Error adding node: {e}")
         raise HTTPException(status_code=400, detail=str(e))
