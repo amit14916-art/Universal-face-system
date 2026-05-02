@@ -15,5 +15,6 @@ google-cloud-vision
 supabase
 httpx
 onvif-zeep
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision
