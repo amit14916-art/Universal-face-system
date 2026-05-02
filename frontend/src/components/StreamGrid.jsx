@@ -3,8 +3,20 @@ import { Camera, Activity, Maximize2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
-const StreamGrid = ({ telemetry }) => {
+const StreamGrid = ({ telemetry, onSnapshot }) => {
   const nodes = Object.keys(telemetry || {});
+
+  const handleSnapshot = (e, nodeName) => {
+    e.preventDefault();
+    const imgElement = document.getElementById(`stream-${nodeName}`);
+    if (imgElement && onSnapshot) {
+      const canvas = document.createElement('canvas');
+      canvas.width = imgElement.naturalWidth || 640;
+      canvas.height = imgElement.naturalHeight || 480;
+      canvas.getContext('2d').drawImage(imgElement, 0, 0);
+      onSnapshot(canvas.toDataURL('image/jpeg', 0.9));
+    }
+  };
 
   if (nodes.length === 0) {
     return (
@@ -41,7 +53,12 @@ const StreamGrid = ({ telemetry }) => {
             </div>
 
             {/* Action Overlay */}
-            <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+               {isOnline && onSnapshot && (
+                 <button onClick={(e) => handleSnapshot(e, nodeName)} className="p-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-500/50 text-white transition-all shadow-lg active:scale-95" title="Capture Snapshot">
+                    <Camera size={14} />
+                 </button>
+               )}
                <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all">
                   <Maximize2 size={14} />
                </button>
@@ -50,6 +67,8 @@ const StreamGrid = ({ telemetry }) => {
             {/* Actual Stream or Status Message */}
             {isOnline ? (
               <img 
+                id={`stream-${nodeName}`}
+                crossOrigin="anonymous"
                 src={`${API_BASE}/api/stream/${nodeName}`} 
                 alt={nodeName}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"

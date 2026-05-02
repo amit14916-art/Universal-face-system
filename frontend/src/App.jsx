@@ -44,6 +44,7 @@ function App() {
   const [regRole, setRegRole] = useState('member');
   const [regSource, setRegSource] = useState('local'); 
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [snapshots, setSnapshots] = useState([]);
   const fileInputRef = useRef(null);
 
   const [identifier, setIdentifier] = useState('');
@@ -662,7 +663,48 @@ function App() {
                               
                               <div className="flex flex-col lg:flex-row gap-8">
                                 <div className="flex-1">
-                                  <StreamGrid telemetry={telemetry} />
+                                  <StreamGrid telemetry={telemetry} onSnapshot={(imgBase64) => setSnapshots(prev => [{id: Date.now(), img: imgBase64, time: new Date()}, ...prev].slice(0, 5))} />
+                                </div>
+                                
+                                {/* Live Activity / Snapshots Sidebar */}
+                                <div className="lg:w-[320px] shrink-0 flex flex-col gap-6">
+                                   <div className="glass-panel p-6 bg-white/[0.01] border-white/5 rounded-[32px] flex-1">
+                                      <div className="flex items-center justify-between mb-6">
+                                         <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Activity</h4>
+                                         </div>
+                                         <div className="text-[9px] font-black text-slate-600 uppercase">Recent</div>
+                                      </div>
+
+                                      <div className="flex flex-col gap-4">
+                                         {snapshots.length > 0 ? snapshots.map(snap => (
+                                            <div key={snap.id} className="group relative overflow-hidden rounded-2xl border-2 border-white/5 aspect-video bg-black">
+                                               <img src={snap.img} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Snapshot" />
+                                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                                               <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                                                  <Camera size={12} className="text-white" />
+                                                  <span className="text-[9px] font-black text-white uppercase tracking-widest">{snap.time.toLocaleTimeString()}</span>
+                                               </div>
+                                            </div>
+                                         )) : logs.slice(0, 4).map(log => (
+                                            <div key={log.id} className="flex items-center gap-4 bg-white/[0.02] border border-white/5 p-3 rounded-2xl">
+                                               <img src={log.image_path} alt={log.name} className="w-12 h-12 rounded-xl object-cover" onError={e => e.target.src='https://via.placeholder.com/150'} />
+                                               <div>
+                                                  <div className="text-sm font-black text-white">{log.name}</div>
+                                                  <div className="text-[9px] text-slate-500 font-bold uppercase mt-1">{new Date(log.timestamp).toLocaleTimeString()} • {log.location}</div>
+                                               </div>
+                                            </div>
+                                         ))}
+
+                                         {snapshots.length === 0 && logs.length === 0 && (
+                                            <div className="text-center py-8 opacity-50">
+                                               <Activity size={24} className="mx-auto mb-2 text-slate-600" />
+                                               <p className="text-[10px] font-black uppercase tracking-widest">No activity yet</p>
+                                            </div>
+                                         )}
+                                      </div>
+                                   </div>
                                 </div>
                                 
                                 {isWebcamNodeActive && (
