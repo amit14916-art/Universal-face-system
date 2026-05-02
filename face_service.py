@@ -267,7 +267,16 @@ async def trigger_notification(owner_id, user, event_type, session):
         try:
             async with httpx.AsyncClient() as client:
                 headers = {"Content-Type": "application/json", "User-Agent": "SentinelAI/1.0"}
-                await client.post(owner.webhook_url, json={"text": message, "content": message}, headers=headers, timeout=5)
+                url = owner.webhook_url
+                
+                # Native WhatsApp Support via CallMeBot
+                if "callmebot.com" in url.lower():
+                    import urllib.parse
+                    safe_msg = urllib.parse.quote(message)
+                    final_url = f"{url}&text={safe_msg}" if "?" in url else f"{url}?text={safe_msg}"
+                    await client.get(final_url, headers=headers, timeout=5)
+                else:
+                    await client.post(url, json={"text": message, "content": message}, headers=headers, timeout=5)
         except Exception as e:
             print(f"Webhook Error: {e}")
     
