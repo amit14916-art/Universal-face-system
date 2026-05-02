@@ -883,17 +883,17 @@ function App() {
                          </div>
                       </div>
                     ) : activeTab === 'settings' ? (
-                         <div className="p-8 space-y-12 max-w-2xl">
+                         <div className="p-8 space-y-12 max-w-4xl">
                              <div className="space-y-6">
                                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Primary Stream Link (IP Cam / Ngrok)</label>
-                                <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
-                                  <Camera className="text-slate-600 flex-shrink-0" size={24} />
+                                <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                  <Camera className="text-slate-700 flex-shrink-0" size={20} />
                                   <input 
                                     type="text" 
                                     value={cameraUrl} 
                                     onChange={e => setCameraUrl(e.target.value)} 
-                                    placeholder="rtsp://admin:12345@192.168.1.100" 
-                                    className="w-full bg-transparent border-none text-lg text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
+                                    placeholder="Paste RTSP/IP Camera Link Here..." 
+                                    className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4 overflow-x-auto" 
                                   />
                                 </div>
                              </div>
