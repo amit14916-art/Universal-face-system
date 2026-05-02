@@ -60,6 +60,7 @@ class SentinelNode:
         self.onvif_user = "admin"
         self.onvif_pass = ""
         self.running = False
+        self.status = "Initializing"
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
         self.cap = None
         self.last_frame = None # Store the latest processed frame for streaming
@@ -73,6 +74,7 @@ class SentinelNode:
 
     def stop(self):
         self.running = False
+        self.status = "Offline"
         if self.cap:
             self.cap.release()
 
@@ -80,35 +82,38 @@ class SentinelNode:
         source = self.source_id
         if self.use_p2p and self.p2p_uid:
             source = f"rtsp://{self.p2p_user}:{self.p2p_pass}@{self.p2p_uid}.p2p.cam/live"
-            log_print(f"[{self.name}] Connecting via P2P Cloud ID: {self.p2p_uid}")
+            print(f"INFO: [{self.name}] Connecting via P2P Cloud ID: {self.p2p_uid}", flush=True)
         else:
-            log_print(f"[{self.name}] Initializing Stream: {source}")
+            print(f"INFO: [{self.name}] Initializing Stream: {source}", flush=True)
         
         # Retry loop for robust connection (especially for IP cameras)
         max_retries = 10 
         connected = False
+        self.status = "Connecting"
         for i in range(max_retries):
-            log_print(f"[{self.name}] Connection attempt {i+1}/{max_retries}...")
+            print(f"INFO: [{self.name}] Connection attempt {i+1}/{max_retries}...", flush=True)
             self.cap = cv2.VideoCapture(source)
             
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if ret:
-                    log_print(f"[{self.name}] Successfully connected and verified stream.")
+                    print(f"SUCCESS: [{self.name}] Stream connected and frame captured.", flush=True)
                     connected = True
                     break
                 else:
-                    log_print(f"[{self.name}] Connected but stream empty. Retrying...")
+                    print(f"WARNING: [{self.name}] Connected but stream empty. Retrying...", flush=True)
             
-            log_print(f"[{self.name}] Connection attempt {i+1} failed. Retrying in 3s...")
+            print(f"ERROR: [{self.name}] Attempt {i+1} failed. Next retry in 3s...", flush=True)
             time.sleep(3)
 
         if not connected:
-            log_print(f"[{self.name}] FATAL: Could not open stream {source}. Please check URL/Network.")
+            print(f"FATAL: [{self.name}] Could not open stream {source}. Check URL/Network.", flush=True)
+            self.status = "Failed"
             self.running = False
             return
         
-        log_print(f"[{self.name}] Stream Verified. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+        self.status = "Online"
+        print(f"INFO: [{self.name}] Stream Active. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}", flush=True)
 
         # Initialize local detector for thread safety
         detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
@@ -241,7 +246,7 @@ def get_telemetry():
         name: {
             "fps": round(node.fps, 1),
             "active_tracks": node.active_tracks,
-            "status": "Online" if node.running else "Offline",
+            "status": node.status,
             "source": str(node.source_id)
         } for name, node in global_nodes.items()
     }
