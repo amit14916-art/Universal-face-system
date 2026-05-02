@@ -692,26 +692,43 @@ function App() {
                                             }
 
                                             return combined.length > 0 ? combined.map(snap => (
-                                               <div key={snap.id} className="group relative overflow-hidden rounded-2xl border-2 border-white/5 aspect-[4/3] bg-black">
-                                                  <img src={snap.img} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Snapshot" />
+                                               <div key={snap.id} className="group relative overflow-hidden rounded-[24px] border border-white/10 aspect-[4/3] bg-black shadow-xl">
+                                                  <img src={snap.img} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" alt="Live Capture" />
                                                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                                                  <div className="absolute bottom-3 left-3 flex flex-col">
-                                                     <span className="text-sm font-black text-white">{snap.name}</span>
+                                                  <div className="absolute top-3 right-3">
+                                                     <div className="bg-emerald-500/20 backdrop-blur-md px-2 py-1 rounded border border-emerald-500/20 flex items-center gap-1.5">
+                                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">LIVE</span>
+                                                     </div>
+                                                  </div>
+                                                  <div className="absolute bottom-4 left-4 flex flex-col">
+                                                     <span className="text-lg font-black text-white uppercase tracking-tighter">{snap.name}</span>
                                                      <div className="flex items-center gap-1.5 mt-1">
-                                                        <Camera size={10} className="text-blue-400" />
-                                                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{new Date(snap.time).toLocaleTimeString()}</span>
+                                                        <Camera size={12} className="text-slate-400" />
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(snap.time).toLocaleTimeString()}</span>
                                                      </div>
                                                   </div>
                                                </div>
-                                            )) : logs.slice(0, 4).map(log => (
-                                               <div key={log.id} className="flex items-center gap-4 bg-white/[0.02] border border-white/5 p-3 rounded-2xl">
-                                                  <img src={log.image_path} alt={log.name} className="w-12 h-12 rounded-xl object-cover" onError={e => e.target.src='https://via.placeholder.com/150'} />
-                                                  <div>
-                                                     <div className="text-sm font-black text-white">{log.name}</div>
-                                                     <div className="text-[9px] text-slate-500 font-bold uppercase mt-1">{new Date(log.timestamp).toLocaleTimeString()} • {log.location}</div>
+                                            )) : logs.slice(0, 4).map(log => {
+                                               const imgUrl = log.image_path?.startsWith('http') ? log.image_path : `${API_BASE}/${log.image_path}`;
+                                               return (
+                                               <div key={log.id} className="group relative overflow-hidden rounded-[24px] border border-white/10 aspect-[4/3] bg-black shadow-xl">
+                                                  <img 
+                                                     src={imgUrl} 
+                                                     className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-700" 
+                                                     alt={log.name} 
+                                                     onError={e => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?q=80&w=1000&auto=format&fit=crop'; }}
+                                                  />
+                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                                                  <div className="absolute bottom-4 left-4 flex flex-col">
+                                                     <span className="text-lg font-black text-white uppercase tracking-tighter">{log.name}</span>
+                                                     <div className="flex items-center gap-1.5 mt-1">
+                                                        <Clock size={12} className="text-slate-400" />
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(log.timestamp).toLocaleTimeString()} • {log.location}</span>
+                                                     </div>
                                                   </div>
                                                </div>
-                                            ));
+                                            )});
                                          })()}
                                       </div>
                                    </div>
