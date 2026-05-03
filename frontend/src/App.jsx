@@ -694,7 +694,7 @@ function App() {
                                          <div className="text-[9px] font-black text-slate-600 uppercase">Recent</div>
                                       </div>
 
-                                      <div className="flex flex-col gap-4">
+                                      <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto custom-scroll pr-2">
                                          {(() => {
                                             const autoCaptures = Object.values(telemetry).flatMap(node => node.live_detections || []);
                                             const combined = [...snapshots, ...autoCaptures].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5);
@@ -970,187 +970,207 @@ function App() {
                       </div>
                     ) : activeTab === 'settings' ? (
                          <div className="p-8 space-y-12 max-w-4xl">
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-6">
-                                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Camera Node Label</label>
-                                   <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                     <Activity className="text-slate-700 flex-shrink-0" size={20} />
-                                     <input 
-                                       type="text" 
-                                       value={cameraName} 
-                                       onChange={e => setCameraName(e.target.value)} 
-                                       placeholder="e.g. Main_Entrance" 
-                                       className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4" 
-                                     />
-                                   </div>
-                                </div>
-                                <div className="space-y-6">
-                                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Primary Stream Link (IP Cam / Ngrok)</label>
-                                   <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                     <Camera className="text-slate-700 flex-shrink-0" size={20} />
-                                     <input 
-                                       type="text" 
-                                       value={cameraUrl} 
-                                       onChange={e => setCameraUrl(e.target.value)} 
-                                       placeholder="Paste RTSP/IP Camera Link Here..." 
-                                       className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4 overflow-x-auto" 
-                                     />
-                                   </div>
-                                </div>
+                             {/* NEW CAMERA CONFIGURATION CARD */}
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
+                               <div className="border-b border-white/5 pb-4">
+                                 <h3 className="text-xl font-black text-white uppercase tracking-tighter">Add / Update Camera</h3>
+                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Connect a new surveillance node</p>
+                               </div>
+                               
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="space-y-3">
+                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Camera Node Label</label>
+                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                       <Activity className="text-blue-500 flex-shrink-0" size={18} />
+                                       <input 
+                                         type="text" 
+                                         value={cameraName} 
+                                         onChange={e => setCameraName(e.target.value)} 
+                                         placeholder="e.g. Main_Entrance" 
+                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                                       />
+                                     </div>
+                                  </div>
+                                  <div className="space-y-3">
+                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Primary Stream Link</label>
+                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                       <Camera className="text-blue-500 flex-shrink-0" size={18} />
+                                       <input 
+                                         type="text" 
+                                         value={cameraUrl} 
+                                         onChange={e => setCameraUrl(e.target.value)} 
+                                         placeholder="Paste RTSP / IP Camera Link" 
+                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4 overflow-x-auto" 
+                                       />
+                                     </div>
+                                  </div>
+                               </div>
+
+                               <div className="pt-6 space-y-6 text-left">
+                                  <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5">
+                                     <div>
+                                        <h3 className="text-sm font-black text-white uppercase tracking-tighter">P2P Cloud Connection</h3>
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Use Cloud UID for cameras without static IP</p>
+                                     </div>
+                                     <button 
+                                       onClick={() => setUseP2P(!useP2P)}
+                                       className={`w-12 h-6 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-600' : 'bg-slate-800'}`}
+                                     >
+                                        <div className={`w-4 h-4 bg-white rounded-full transition-all ${useP2P ? 'translate-x-6' : 'translate-x-0'}`} />
+                                     </button>
+                                  </div>
+
+                                  {useP2P && (
+                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-blue-600/5 border border-blue-600/20 rounded-3xl animate-in slide-in-from-top-4">
+                                        <div className="space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Camera Cloud UID</span>
+                                           <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="ABCD-123456-EFGH" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
+                                        </div>
+                                        <div className="space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Device Username</span>
+                                           <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="admin" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Device Password</span>
+                                           <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="••••••••" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
+                                        </div>
+                                     </div>
+                                  )}
+                               </div>
+
+                               <div className="pt-2 space-y-6 text-left">
+                                  <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5">
+                                     <div>
+                                        <h3 className="text-sm font-black text-white uppercase tracking-tighter">ONVIF Auto-Discovery</h3>
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Automatically fetch RTSP URL from IP camera</p>
+                                     </div>
+                                     <button 
+                                       onClick={() => setUseOnvif(!useOnvif)}
+                                       className={`w-12 h-6 rounded-full p-1 transition-all ${useOnvif ? 'bg-emerald-600' : 'bg-slate-800'}`}
+                                     >
+                                        <div className={`w-4 h-4 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-6' : 'translate-x-0'}`} />
+                                     </button>
+                                  </div>
+
+                                  {useOnvif && (
+                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-emerald-600/5 border border-emerald-600/20 rounded-3xl animate-in slide-in-from-top-4">
+                                        <div className="space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF Port</span>
+                                           <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="80" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
+                                        </div>
+                                        <div className="space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF User</span>
+                                           <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="admin" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-3">
+                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF Password</span>
+                                           <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="••••••••" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
+                                        </div>
+                                     </div>
+                                  )}
+                               </div>
+                               
+                               <div className="pt-6">
+                                 <button 
+                                   onClick={handleUpdateNode}
+                                   className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-[20px] font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
+                                 >
+                                    ADD / UPDATE NODE <ArrowRight size={18} />
+                                 </button>
+                               </div>
                              </div>
-
-                             <div className="pt-6 border-t border-white/5 space-y-6 text-left">
-                                <div className="flex items-center justify-between">
-                                   <div>
-                                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">P2P Cloud Connection</h3>
-                                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Use Cloud UID for cameras without static IP</p>
-                                   </div>
-                                   <button 
-                                     onClick={() => setUseP2P(!useP2P)}
-                                     className={`w-14 h-8 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-600' : 'bg-slate-800'}`}
-                                   >
-                                      <div className={`w-6 h-6 bg-white rounded-full transition-all ${useP2P ? 'translate-x-6' : 'translate-x-0'}`} />
-                                   </button>
-                                </div>
-
-                                {useP2P && (
-                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4">
-                                      <div className="space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Camera Cloud UID</span>
-                                         <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="ABCD-123456-EFGH" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
-                                      </div>
-                                      <div className="space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Device Username</span>
-                                         <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="admin" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
-                                      </div>
-                                      <div className="md:col-span-2 space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">Device Password</span>
-                                         <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="••••••••" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-blue-600 transition-all" />
-                                      </div>
-                                   </div>
-                                )}
-                             </div>
-
-                             <div className="pt-6 border-t border-white/5 space-y-6 text-left">
-                                <div className="flex items-center justify-between">
-                                   <div>
-                                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">ONVIF Auto-Discovery</h3>
-                                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Automatically fetch RTSP URL from IP camera</p>
-                                   </div>
-                                   <button 
-                                     onClick={() => setUseOnvif(!useOnvif)}
-                                     className={`w-14 h-8 rounded-full p-1 transition-all ${useOnvif ? 'bg-emerald-600' : 'bg-slate-800'}`}
-                                   >
-                                      <div className={`w-6 h-6 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-6' : 'translate-x-0'}`} />
-                                   </button>
-                                </div>
-
-                                {useOnvif && (
-                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4">
-                                      <div className="space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF Port</span>
-                                         <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="80" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
-                                      </div>
-                                      <div className="space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF User</span>
-                                         <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="admin" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
-                                      </div>
-                                      <div className="md:col-span-2 space-y-3">
-                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2">ONVIF Password</span>
-                                         <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="••••••••" className="w-full bg-white/[0.03] border-2 border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:border-emerald-600 transition-all" />
-                                      </div>
-                                   </div>
-                                )}
-                             </div>
-                             
-                             <button 
-                               onClick={handleUpdateNode}
-                               className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
-                             >
-                                ADD / UPDATE NODE <ArrowRight size={18} />
-                             </button>
 
                              {/* ACTIVE NODES LIST */}
-                             <div className="pt-8 border-t border-white/5 space-y-4 text-left">
-                                <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4">Command Center Nodes</h3>
-                                <div className="grid grid-cols-1 gap-4">
+                             {/* ACTIVE NODES LIST CARD */}
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6 text-left shadow-2xl">
+                                <div className="border-b border-white/5 pb-4">
+                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">Command Center Nodes</h3>
+                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Manage your active surveillance grid</p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4 pt-2">
                                   {savedNodes.map(node => (
-                                    <div key={node.name} className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                                      <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
-                                          <Camera size={18} />
+                                    <div key={node.name} className="flex items-center justify-between p-4 bg-[#020617] border-2 border-white/5 rounded-3xl hover:border-blue-500/50 transition-colors group">
+                                      <div className="flex items-center gap-5">
+                                        <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500 shrink-0">
+                                          <Camera size={20} />
                                         </div>
-                                        <div>
+                                        <div className="min-w-0">
                                           <div className="text-sm font-black text-white uppercase tracking-widest">{node.name}</div>
-                                          <div className="text-[9px] text-slate-500 max-w-[200px] truncate">{node.url}</div>
+                                          <div className="text-[10px] text-slate-500 max-w-[200px] md:max-w-[400px] truncate font-mono mt-1">{node.url}</div>
                                         </div>
                                       </div>
                                       <button 
                                         onClick={() => handleDeleteNode(node.name)}
-                                        className="w-10 h-10 flex items-center justify-center bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                                        className="w-12 h-12 flex items-center justify-center bg-white/5 text-slate-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shrink-0"
                                       >
-                                        <Trash2 size={16} />
+                                        <Trash2 size={18} />
                                       </button>
                                     </div>
                                   ))}
                                   {savedNodes.length === 0 && (
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">No nodes configured.</div>
+                                    <div className="text-center py-10 opacity-50 bg-[#020617] rounded-3xl border-2 border-white/5 border-dashed">
+                                       <Camera size={24} className="mx-auto mb-3 text-slate-600" />
+                                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No nodes configured</p>
+                                    </div>
                                   )}
                                 </div>
                              </div>
 
-                             <div className="pt-8 border-t border-white/5 space-y-8 text-left">
-                                <div>
-                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Smart Notifications</h3>
+                             {/* SMART NOTIFICATIONS CARD */}
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
+                                <div className="border-b border-white/5 pb-4">
+                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Notifications</h3>
                                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Telegram via Webhooks</p>
                                 </div>
 
-                                <div className="space-y-6">
-                                  <div className="space-y-4">
-                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2">Webhook URL</label>
-                                    <div className="flex items-center bg-[#020617] border-2 border-white/10 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all">
-                                      <Bell className="text-slate-600 flex-shrink-0" size={24} />
+                                <div className="space-y-6 pt-2">
+                                  <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Webhook URL</label>
+                                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-emerald-600 transition-all shadow-inner">
+                                      <Bell className="text-emerald-500 flex-shrink-0" size={18} />
                                       <input 
                                         type="text" 
                                         value={webhookUrl} 
                                         onChange={e => setWebhookUrl(e.target.value)} 
                                         placeholder="https://webhook.site/..." 
-                                        className="w-full bg-transparent border-none text-md text-white font-black focus:outline-none placeholder:text-slate-800 ml-6" 
+                                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <button 
                                       onClick={() => setNotifyOnEntry(!notifyOnEntry)}
-                                      className={`p-6 rounded-[24px] border-2 flex items-center justify-between transition-all ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                                      className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all group ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-[#020617] border-white/5 text-slate-500 hover:border-white/20'}`}
                                     >
                                       <div className="flex flex-col items-start">
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Every Entry</span>
-                                        <span className="text-sm font-black">Notify on Check-in</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Every Entry</span>
+                                        <span className="text-sm font-black mt-1">Notify on Check-in</span>
                                       </div>
-                                      <CheckCircle className={notifyOnEntry ? 'text-white' : 'text-slate-800'} size={24} />
+                                      <CheckCircle className={`${notifyOnEntry ? 'text-blue-500' : 'text-slate-700 group-hover:text-slate-500'} transition-colors`} size={24} />
                                     </button>
 
                                     <button 
                                       onClick={() => setNotifyOnExpiry(!notifyOnExpiry)}
-                                      className={`p-6 rounded-[24px] border-2 flex items-center justify-between transition-all ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                                      className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all group ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-[#020617] border-white/5 text-slate-500 hover:border-white/20'}`}
                                     >
                                       <div className="flex flex-col items-start">
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Critical Alert</span>
-                                        <span className="text-sm font-black">Expiry Notifications</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Critical Alert</span>
+                                        <span className="text-sm font-black mt-1">Expiry Notifications</span>
                                       </div>
-                                      <Bell className={notifyOnExpiry ? 'text-white' : 'text-slate-800'} size={24} />
+                                      <AlertTriangle className={`${notifyOnExpiry ? 'text-red-500' : 'text-slate-700 group-hover:text-slate-500'} transition-colors`} size={24} />
                                     </button>
                                   </div>
 
-                                  <button 
-                                    onClick={saveNotificationSettings}
-                                    disabled={isSavingSettings}
-                                    className="w-full px-10 py-5 bg-emerald-600 text-white rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
-                                  >
-                                    {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} />
-                                  </button>
+                                  <div className="pt-4">
+                                    <button 
+                                      onClick={saveNotificationSettings}
+                                      disabled={isSavingSettings}
+                                      className="w-full md:w-auto px-10 py-5 bg-emerald-600 text-white rounded-[20px] font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
+                                    >
+                                      {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} />
+                                    </button>
+                                  </div>
                                 </div>
                              </div>
                           </div>
@@ -1399,3 +1419,4 @@ function App() {
 }
 
 export default App;
+
