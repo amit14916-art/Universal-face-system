@@ -791,6 +791,27 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     return {"message": f"User {user_id} deleted successfully"}
 
 
+@app.get("/api/whatsapp/qr")
+async def get_whatsapp_qr():
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("http://localhost:9000/qr", timeout=10.0)
+            return resp.json()
+    except Exception as e:
+        return {"qr": None, "status": f"Gateway Error: {str(e)}"}
+
+@app.post("/api/whatsapp/logout")
+async def logout_whatsapp():
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post("http://localhost:9000/logout", timeout=10.0)
+            return resp.json()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

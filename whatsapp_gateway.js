@@ -17,6 +17,11 @@ async function connectToWhatsApp() {
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
+        browser: ["Sentinel AI", "Chrome", "1.1.0"],
+        syncFullHistory: false,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
+        retryRequestDelayMs: 5000
     });
 
     sock.ev.on("connection.update", (update) => {
