@@ -74,6 +74,10 @@ class SignupRequest(BaseModel):
 class NotificationSettingsRequest(BaseModel):
     owner_id: int
     webhook_url: str
+    whatsapp_enabled: bool = False
+    whatsapp_number: str = ""
+    whatsapp_api_key: str = ""
+    whatsapp_provider: str = "callmebot"
     notify_on_entry: bool
     notify_on_expiry: bool
 
@@ -591,6 +595,10 @@ async def update_notification_settings(request: NotificationSettingsRequest, db:
     if not owner: raise HTTPException(status_code=404, detail="Owner not found")
     
     owner.webhook_url = request.webhook_url
+    owner.whatsapp_enabled = request.whatsapp_enabled
+    owner.whatsapp_number = request.whatsapp_number
+    owner.whatsapp_api_key = request.whatsapp_api_key
+    owner.whatsapp_provider = request.whatsapp_provider
     owner.notify_on_entry = request.notify_on_entry
     owner.notify_on_expiry = request.notify_on_expiry
     
@@ -605,6 +613,10 @@ async def get_notification_settings(owner_id: int, db: AsyncSession = Depends(ge
     
     return {
         "webhook_url": owner.webhook_url,
+        "whatsapp_enabled": owner.whatsapp_enabled,
+        "whatsapp_number": owner.whatsapp_number,
+        "whatsapp_api_key": owner.whatsapp_api_key,
+        "whatsapp_provider": owner.whatsapp_provider,
         "notify_on_entry": owner.notify_on_entry,
         "notify_on_expiry": owner.notify_on_expiry
     }

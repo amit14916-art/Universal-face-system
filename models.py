@@ -38,6 +38,10 @@ class GymOwner(Base):
     mobile = Column(String, nullable=False)
     password = Column(String, nullable=False)
     webhook_url = Column(String, nullable=True) # WhatsApp/Telegram Webhook
+    whatsapp_enabled = Column(Boolean, default=False)
+    whatsapp_number = Column(String, nullable=True)
+    whatsapp_api_key = Column(String, nullable=True)
+    whatsapp_provider = Column(String, default="callmebot") # callmebot, ultramsg, twilio
     notify_on_entry = Column(Boolean, default=True)
     notify_on_expiry = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)

@@ -247,7 +247,7 @@ async def trigger_notification(owner_id, user, event_type, session):
     from models import GymOwner
     result = await session.execute(select(GymOwner).where(GymOwner.id == owner_id))
     owner = result.scalars().first()
-    if not owner or not owner.webhook_url: return
+    if not owner: return
     
     # Respect Notification Settings
     if event_type == "Entry Success" and not getattr(owner, 'notify_on_entry', True):
@@ -262,25 +262,48 @@ async def trigger_notification(owner_id, user, event_type, session):
         else:
             message += f"\n⚠️ *Action Required: No active membership found.*"
 
-    # Async Non-blocking notification
-    async def send_webhook():
+    async def send_all_notifications():
         try:
             async with httpx.AsyncClient() as client:
                 headers = {"Content-Type": "application/json", "User-Agent": "SentinelAI/1.0"}
-                url = owner.webhook_url
                 
-                # Native WhatsApp Support via CallMeBot
-                if "callmebot.com" in url.lower():
-                    import urllib.parse
-                    safe_msg = urllib.parse.quote(message)
-                    final_url = f"{url}&text={safe_msg}" if "?" in url else f"{url}?text={safe_msg}"
-                    await client.get(final_url, headers=headers, timeout=5)
-                else:
-                    await client.post(url, json={"text": message, "content": message}, headers=headers, timeout=5)
+                # 1. Standard Webhook Dispatch
+                if owner.webhook_url:
+                    try:
+                        url = owner.webhook_url
+                        if "callmebot.com" in url.lower():
+                            import urllib.parse
+                            safe_msg = urllib.parse.quote(message)
+                            final_url = f"{url}&text={safe_msg}" if "?" in url else f"{url}?text={safe_msg}"
+                            await client.get(final_url, headers=headers, timeout=5)
+                        else:
+                            await client.post(url, json={"text": message, "content": message}, headers=headers, timeout=5)
+                    except Exception as e:
+                        print(f"Webhook Error: {e}")
+
+                # 2. Native WhatsApp Support
+                if getattr(owner, 'whatsapp_enabled', False) and owner.whatsapp_number and owner.whatsapp_api_key:
+                    provider = getattr(owner, 'whatsapp_provider', 'callmebot').lower()
+                    try:
+                        if provider == 'callmebot':
+                            import urllib.parse
+                            safe_msg = urllib.parse.quote(message)
+                            # CallMeBot URL: https://api.callmebot.com/whatsapp.php?phone=[phone]&text=[text]&apikey=[apikey]
+                            url = f"https://api.callmebot.com/whatsapp.php?phone={owner.whatsapp_number}&text={safe_msg}&apikey={owner.whatsapp_api_key}"
+                            await client.get(url, timeout=5)
+                        elif provider == 'ultramsg':
+                            # UltraMsg requires instance ID and token. Assuming API Key format: instanceID/token
+                            if "/" in owner.whatsapp_api_key:
+                                instance_id, token = owner.whatsapp_api_key.split("/", 1)
+                                url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+                                payload = {"token": token, "to": owner.whatsapp_number, "body": message}
+                                await client.post(url, data=payload, timeout=5)
+                    except Exception as ws_err:
+                        print(f"WhatsApp Provider Error ({provider}): {ws_err}")
         except Exception as e:
-            print(f"Webhook Error: {e}")
+            print(f"Notification System Error: {e}")
     
-    task = asyncio.create_task(send_webhook())
+    task = asyncio.create_task(send_all_notifications())
     background_tasks.add(task)
     task.add_done_callback(background_tasks.discard)
 

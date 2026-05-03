@@ -57,6 +57,10 @@ function App() {
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
   const [stats, setStats] = useState(null);
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappApiKey, setWhatsappApiKey] = useState('');
+  const [whatsappProvider, setWhatsappProvider] = useState('callmebot');
   const [notifyOnEntry, setNotifyOnEntry] = useState(true);
   const [notifyOnExpiry, setNotifyOnExpiry] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -121,6 +125,10 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setWebhookUrl(data.webhook_url || '');
+        setWhatsappEnabled(data.whatsapp_enabled || false);
+        setWhatsappNumber(data.whatsapp_number || '');
+        setWhatsappApiKey(data.whatsapp_api_key || '');
+        setWhatsappProvider(data.whatsapp_provider || 'callmebot');
         setNotifyOnEntry(data.notify_on_entry);
         setNotifyOnExpiry(data.notify_on_expiry);
       }
@@ -216,6 +224,10 @@ function App() {
         body: JSON.stringify({
           owner_id: ownerId,
           webhook_url: webhookUrl,
+          whatsapp_enabled: whatsappEnabled,
+          whatsapp_number: whatsappNumber,
+          whatsapp_api_key: whatsappApiKey,
+          whatsapp_provider: whatsappProvider,
           notify_on_entry: notifyOnEntry,
           notify_on_expiry: notifyOnExpiry
         })
@@ -1124,19 +1136,71 @@ function App() {
                                 </div>
 
                                 <div className="space-y-6 pt-2">
-                                  <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Webhook URL</label>
-                                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-emerald-600 transition-all shadow-inner">
-                                      <Bell className="text-emerald-500 flex-shrink-0" size={18} />
-                                      <input 
-                                        type="text" 
-                                        value={webhookUrl} 
-                                        onChange={e => setWebhookUrl(e.target.value)} 
-                                        placeholder="https://webhook.site/..." 
-                                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                                      />
-                                    </div>
-                                  </div>
+                                   {/* WhatsApp Configuration Toggle */}
+                                   <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5 shadow-inner">
+                                      <div className="flex items-center gap-4">
+                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${whatsappEnabled ? 'bg-emerald-600/10 text-emerald-500' : 'bg-slate-800/10 text-slate-500'}`}>
+                                            <Bell size={20} />
+                                         </div>
+                                         <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-tighter">Native WhatsApp Alerts</h3>
+                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Receive AI detections directly on WhatsApp</p>
+                                         </div>
+                                      </div>
+                                      <button 
+                                        onClick={() => setWhatsappEnabled(!whatsappEnabled)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-all ${whatsappEnabled ? 'bg-emerald-600' : 'bg-slate-800'}`}
+                                      >
+                                         <div className={`w-4 h-4 bg-white rounded-full transition-all ${whatsappEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                      </button>
+                                   </div>
+
+                                   {whatsappEnabled && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-emerald-600/5 border border-emerald-600/20 rounded-3xl animate-in slide-in-from-top-4">
+                                         <div className="space-y-3">
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">WhatsApp Provider</span>
+                                            <select 
+                                              value={whatsappProvider} 
+                                              onChange={e => setWhatsappProvider(e.target.value)} 
+                                              className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm appearance-none outline-none"
+                                            >
+                                               <option value="callmebot">CallMeBot (Free)</option>
+                                               <option value="ultramsg">UltraMsg (Enterprise)</option>
+                                            </select>
+                                         </div>
+                                         <div className="space-y-3">
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">WhatsApp Number</span>
+                                            <input value={whatsappNumber} onChange={e => setWhatsappNumber(e.target.value)} placeholder="+919876543210" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm outline-none" />
+                                         </div>
+                                         <div className="md:col-span-2 space-y-3">
+                                            <div className="flex items-center justify-between ml-2">
+                                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">API Key / Token</span>
+                                               <a href={whatsappProvider === 'callmebot' ? "https://www.callmebot.com/blog/free-api-whatsapp-messages/" : "https://ultramsg.com/"} target="_blank" rel="noreferrer" className="text-[8px] text-blue-500 underline font-black uppercase tracking-widest">Get API Key</a>
+                                            </div>
+                                            <input 
+                                              type="password" 
+                                              value={whatsappApiKey} 
+                                              onChange={e => setWhatsappApiKey(e.target.value)} 
+                                              placeholder={whatsappProvider === 'ultramsg' ? "instanceID/token" : "123456"} 
+                                              className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm outline-none" 
+                                            />
+                                         </div>
+                                      </div>
+                                   )}
+
+                                   <div className="space-y-3">
+                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Custom Webhook URL (Advanced)</label>
+                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                       <Bell className="text-blue-500 flex-shrink-0" size={18} />
+                                       <input 
+                                         type="text" 
+                                         value={webhookUrl} 
+                                         onChange={e => setWebhookUrl(e.target.value)} 
+                                         placeholder="https://webhook.site/..." 
+                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                                       />
+                                     </div>
+                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <button 
