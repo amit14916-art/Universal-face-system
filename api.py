@@ -97,23 +97,25 @@ async def lifespan(app: FastAPI):
     # Initialize Sentinel Engine inside API process for shared memory
     engine.start_background_workers()
     
-    # Attempt to start local camera if available (useful for local development)
-    try:
-        sources = [{"id": 0, "name": "Main_Hub", "rotation": None}]
-        for src in sources:
-            node = engine.SentinelNode(src["id"], src["name"], rotation=src["rotation"])
+    # Load Command Center Cameras from Database
+    async with AsyncSessionLocal() as session:
+        from models import CameraNode
+        result = await session.execute(select(CameraNode))
+        db_nodes = result.scalars().all()
+        for c in db_nodes:
+            node = engine.SentinelNode(
+                c.url, c.name, owner_id=c.owner_id, rotation=None,
+                use_p2p=c.use_p2p, p2p_uid=c.p2p_uid,
+                p2p_user=c.p2p_user, p2p_pass=c.p2p_pass
+            )
+            node.use_onvif = c.use_onvif
+            node.onvif_port = c.onvif_port
+            node.onvif_user = c.onvif_user
+            node.onvif_pass = c.onvif_pass
             node.start()
-            # Give it a moment to check if it actually opened
-            await asyncio.sleep(1)
-            if node.running and node.cap and node.cap.isOpened():
-                engine.global_nodes[src["name"]] = node
-                logger.info(f"SYSTEM: Local Webcam '{src['name']}' Connected")
-            else:
-                node.stop()
-                logger.warning(f"SYSTEM: Local Webcam '{src['name']}' not found or busy. Skipping.")
-    except Exception as e:
-        logger.warning(f"SYSTEM: Local camera initialization skipped: {e}")
-    
+            engine.global_nodes[c.name] = node
+            logger.info(f"SYSTEM: Restored Camera Node '{c.name}'")
+            
     print(">> Sentinel Engine Integrated & Online")
     yield
     # Clean shutdown
@@ -215,7 +217,7 @@ async def recognize_crop(request: Request, db: AsyncSession = Depends(get_db)):
     }
 
 @app.post("/api/nodes/add")
-async def add_node(request: NodeRequest):
+async def add_node(request: NodeRequest, db: AsyncSession = Depends(get_db)):
     if request.name in engine.global_nodes:
         logger.info(f"Stopping existing node: {request.name}")
         engine.global_nodes[request.name].stop()
@@ -239,7 +241,6 @@ async def add_node(request: NodeRequest):
 
         url = int(final_url) if str(final_url).isdigit() else final_url
         if isinstance(url, str) and url.startswith("http"):
-            # Auto-append /video if user forgets it for IP Webcam
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):
                 url = url.rstrip('/') + '/video'
 
@@ -255,34 +256,72 @@ async def add_node(request: NodeRequest):
         node.onvif_pass = request.onvif_pass
         node.start()
         
-        # Explicitly save to global registry
         engine.global_nodes[node_name] = node
-        logger.info(f"Node {node_name} added to global registry. Current nodes: {list(engine.global_nodes.keys())}")
         
+        # Save to database
+        from models import CameraNode
+        result = await db.execute(select(CameraNode).where(CameraNode.owner_id == request.owner_id, CameraNode.name == node_name))
+        db_node = result.scalars().first()
+        if not db_node:
+            db_node = CameraNode(owner_id=request.owner_id, name=node_name)
+            db.add(db_node)
+        
+        db_node.url = str(request.url)
+        db_node.use_p2p = request.use_p2p
+        db_node.p2p_uid = request.p2p_uid
+        db_node.p2p_user = request.p2p_user
+        db_node.p2p_pass = request.p2p_pass
+        db_node.use_onvif = request.use_onvif
+        db_node.onvif_port = request.onvif_port
+        db_node.onvif_user = request.onvif_user
+        db_node.onvif_pass = request.onvif_pass
+        await db.commit()
+
         return {"message": f"Node {node_name} added successfully.", "onvif_success": request.use_onvif and final_url != request.url}
     except Exception as e:
         logger.error(f"Error adding node: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/nodes/list")
+async def list_nodes(owner_id: int, db: AsyncSession = Depends(get_db)):
+    from models import CameraNode
+    result = await db.execute(select(CameraNode).where(CameraNode.owner_id == owner_id))
+    nodes = result.scalars().all()
+    return nodes
+
+@app.delete("/api/nodes/{name}")
+async def delete_node(name: str, owner_id: int, db: AsyncSession = Depends(get_db)):
+    from models import CameraNode
+    result = await db.execute(select(CameraNode).where(CameraNode.owner_id == owner_id, CameraNode.name == name))
+    node = result.scalars().first()
+    if node:
+        await db.delete(node)
+        await db.commit()
+    
+    if name in engine.global_nodes:
+        engine.global_nodes[name].stop()
+        del engine.global_nodes[name]
+    
+    return {"message": "Node deleted"}
+
 @app.get("/api/nodes/settings")
 async def get_node_settings(owner_id: int):
-    # Find the node for this owner in engine.global_nodes
-    # For now, we assume one node per owner or just return the first one found
+    # Compatibility endpoint for frontend
     for name, node in engine.global_nodes.items():
-        if node.owner_id == owner_id:
+        if getattr(node, 'owner_id', None) == owner_id or node.owner_id == owner_id:
             return {
                 "name": node.node_name,
                 "url": str(node.rtsp_url),
-                "use_p2p": node.use_p2p,
-                "p2p_uid": node.p2p_uid,
-                "p2p_user": node.p2p_user,
-                "p2p_pass": node.p2p_pass,
+                "use_p2p": getattr(node, 'use_p2p', False),
+                "p2p_uid": getattr(node, 'p2p_uid', ''),
+                "p2p_user": getattr(node, 'p2p_user', 'admin'),
+                "p2p_pass": getattr(node, 'p2p_pass', ''),
                 "use_onvif": getattr(node, 'use_onvif', False),
                 "onvif_port": getattr(node, 'onvif_port', 80),
                 "onvif_user": getattr(node, 'onvif_user', 'admin'),
                 "onvif_pass": getattr(node, 'onvif_pass', '')
             }
-    return {"message": "No active node found for this owner"}
+    return {"message": "No active node found"}
 
 @app.post("/api/auth/signup")
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):

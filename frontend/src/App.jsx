@@ -69,6 +69,11 @@ function App() {
   const [onvifPort, setOnvifPort] = useState(80);
   const [onvifUser, setOnvifUser] = useState('admin');
   const [onvifPass, setOnvifPass] = useState('');
+  
+  // Multiple Camera States
+  const [cameraName, setCameraName] = useState('Main_Entrance');
+  const [savedNodes, setSavedNodes] = useState([]);
+  
   const [isWebcamNodeActive, setIsWebcamNodeActive] = useState(false);
   const [browserStream, setBrowserStream] = useState(null);
   const browserVideoRef = useRef(null);
@@ -120,19 +125,22 @@ function App() {
         setNotifyOnExpiry(data.notify_on_expiry);
       }
       
-      const nRes = await fetch(`${API_BASE}/api/nodes/settings?owner_id=${ownerId}`);
-      if (nRes.ok) {
-        const nData = await nRes.json();
-        if (nData.url) {
-          setCameraUrl(nData.url);
-          setUseP2P(nData.use_p2p || false);
-          setP2pUid(nData.p2p_uid || '');
-          setP2pUser(nData.p2p_user || 'admin');
-          setP2pPass(nData.p2p_pass || '');
-          setUseOnvif(nData.use_onvif || false);
-          setOnvifPort(nData.onvif_port || 80);
-          setOnvifUser(nData.onvif_user || 'admin');
-          setOnvifPass(nData.onvif_pass || '');
+      const nodesRes = await fetch(`${API_BASE}/api/nodes/list?owner_id=${ownerId}`);
+      if (nodesRes.ok) {
+        const nData = await nodesRes.json();
+        setSavedNodes(nData);
+        if (nData.length > 0) {
+           const n = nData[0];
+           setCameraUrl(n.url);
+           setCameraName(n.name);
+           setUseP2P(n.use_p2p || false);
+           setP2pUid(n.p2p_uid || '');
+           setP2pUser(n.p2p_user || 'admin');
+           setP2pPass(n.p2p_pass || '');
+           setUseOnvif(n.use_onvif || false);
+           setOnvifPort(n.onvif_port || 80);
+           setOnvifUser(n.onvif_user || 'admin');
+           setOnvifPass(n.onvif_pass || '');
         }
       }
     } catch (e) { console.error(e); }
@@ -399,29 +407,38 @@ function App() {
 
 
   const handleUpdateNode = async () => {
+    if (!cameraUrl) return alert("Please enter a valid Stream Link");
     try {
       await fetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: "Gym_Camera", 
-          url: cameraUrl || "0",
-          owner_id: parseInt(ownerId),
+        body: JSON.stringify({
+          name: cameraName || "Gym_Camera",
+          url: cameraUrl,
+          owner_id: ownerId,
           use_p2p: useP2P,
           p2p_uid: p2pUid,
           p2p_user: p2pUser,
           p2p_pass: p2pPass,
           use_onvif: useOnvif,
-          onvif_port: parseInt(onvifPort),
+          onvif_port: parseInt(onvifPort) || 80,
           onvif_user: onvifUser,
           onvif_pass: onvifPass
         })
       });
-      alert("Node protocol updated successfully!");
-    } catch(e) {
-      console.error("Failed to update node", e);
-      alert("Update failed");
-    }
+      alert(`Node '${cameraName || "Gym_Camera"}' initialized!`);
+      fetchSettings();
+    } catch (e) { alert("Failed to add node."); }
+  };
+
+  const handleDeleteNode = async (nodeName) => {
+    if (!confirm(`Are you sure you want to delete ${nodeName}?`)) return;
+    try {
+      await fetch(`${API_BASE}/api/nodes/${nodeName}?owner_id=${ownerId}`, {
+        method: 'DELETE'
+      });
+      fetchSettings();
+    } catch (e) { alert("Failed to delete node."); }
   };
 
   if (!isLoggedIn) {
@@ -953,17 +970,32 @@ function App() {
                       </div>
                     ) : activeTab === 'settings' ? (
                          <div className="p-8 space-y-12 max-w-4xl">
-                             <div className="space-y-6">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Primary Stream Link (IP Cam / Ngrok)</label>
-                                <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                  <Camera className="text-slate-700 flex-shrink-0" size={20} />
-                                  <input 
-                                    type="text" 
-                                    value={cameraUrl} 
-                                    onChange={e => setCameraUrl(e.target.value)} 
-                                    placeholder="Paste RTSP/IP Camera Link Here..." 
-                                    className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4 overflow-x-auto" 
-                                  />
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-6">
+                                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Camera Node Label</label>
+                                   <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                     <Activity className="text-slate-700 flex-shrink-0" size={20} />
+                                     <input 
+                                       type="text" 
+                                       value={cameraName} 
+                                       onChange={e => setCameraName(e.target.value)} 
+                                       placeholder="e.g. Main_Entrance" 
+                                       className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4" 
+                                     />
+                                   </div>
+                                </div>
+                                <div className="space-y-6">
+                                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-2 text-left">Primary Stream Link (IP Cam / Ngrok)</label>
+                                   <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-4 py-4 focus-within:border-blue-600 transition-all shadow-inner">
+                                     <Camera className="text-slate-700 flex-shrink-0" size={20} />
+                                     <input 
+                                       type="text" 
+                                       value={cameraUrl} 
+                                       onChange={e => setCameraUrl(e.target.value)} 
+                                       placeholder="Paste RTSP/IP Camera Link Here..." 
+                                       className="w-full bg-transparent border-none text-base text-white font-medium focus:outline-none placeholder:text-slate-800 ml-4 overflow-x-auto" 
+                                     />
+                                   </div>
                                 </div>
                              </div>
 
@@ -1035,8 +1067,37 @@ function App() {
                                onClick={handleUpdateNode}
                                className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
                              >
-                                APPLY PROTOCOL SETTINGS <ArrowRight size={18} />
+                                ADD / UPDATE NODE <ArrowRight size={18} />
                              </button>
+
+                             {/* ACTIVE NODES LIST */}
+                             <div className="pt-8 border-t border-white/5 space-y-4 text-left">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4">Command Center Nodes</h3>
+                                <div className="grid grid-cols-1 gap-4">
+                                  {savedNodes.map(node => (
+                                    <div key={node.name} className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                                      <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
+                                          <Camera size={18} />
+                                        </div>
+                                        <div>
+                                          <div className="text-sm font-black text-white uppercase tracking-widest">{node.name}</div>
+                                          <div className="text-[9px] text-slate-500 max-w-[200px] truncate">{node.url}</div>
+                                        </div>
+                                      </div>
+                                      <button 
+                                        onClick={() => handleDeleteNode(node.name)}
+                                        className="w-10 h-10 flex items-center justify-center bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  {savedNodes.length === 0 && (
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">No nodes configured.</div>
+                                  )}
+                                </div>
+                             </div>
 
                              <div className="pt-8 border-t border-white/5 space-y-8 text-left">
                                 <div>

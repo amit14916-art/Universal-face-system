@@ -41,3 +41,20 @@ class GymOwner(Base):
     notify_on_entry = Column(Boolean, default=True)
     notify_on_expiry = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
+
+class CameraNode(Base):
+    __tablename__ = "camera_nodes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    url = Column(String, nullable=False)
+    use_p2p = Column(Boolean, default=False)
+    p2p_uid = Column(String, nullable=True)
+    p2p_user = Column(String, nullable=True)
+    p2p_pass = Column(String, nullable=True)
+    use_onvif = Column(Boolean, default=False)
+    onvif_port = Column(Integer, default=80)
+    onvif_user = Column(String, nullable=True)
+    onvif_pass = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
