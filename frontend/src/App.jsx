@@ -2,11 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Shield, LayoutList, User, ShieldOff, Trash2, X, Activity, 
   Users, Clock, Edit2, Settings, History, MapPin, Download,
-  ChevronRight, Bell, Search, Info, Camera, LogIn, Lock, Mail, ArrowRight, LogOut, CheckCircle, AlertTriangle
+  ChevronRight, Bell, Search, Info, Camera, LogIn, Lock, Mail, ArrowRight, LogOut, CheckCircle, AlertTriangle, Send, ShieldAlert
 } from 'lucide-react';
 import './index.css';
 import StreamGrid from './components/StreamGrid';
-import TelemetryPanel from './components/TelemetryPanel';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -57,10 +56,6 @@ function App() {
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
   const [stats, setStats] = useState(null);
   const [webhookUrl, setWebhookUrl] = useState('');
-  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [whatsappApiKey, setWhatsappApiKey] = useState('');
-  const [whatsappProvider, setWhatsappProvider] = useState('callmebot');
   const [whatsappQr, setWhatsappQr] = useState(null);
   const [whatsappStatus, setWhatsappStatus] = useState('Disconnected');
   const [telegramEnabled, setTelegramEnabled] = useState(false);
@@ -79,7 +74,6 @@ function App() {
   const [onvifUser, setOnvifUser] = useState('admin');
   const [onvifPass, setOnvifPass] = useState('');
   
-  // Multiple Camera States
   const [cameraName, setCameraName] = useState('Main_Entrance');
   const [savedNodes, setSavedNodes] = useState([]);
   
@@ -130,10 +124,6 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setWebhookUrl(data.webhook_url || '');
-        setWhatsappEnabled(data.whatsapp_enabled || false);
-        setWhatsappNumber(data.whatsapp_number || '');
-        setWhatsappApiKey(data.whatsapp_api_key || '');
-        setWhatsappProvider(data.whatsapp_provider || 'callmebot');
         setTelegramEnabled(data.telegram_enabled || false);
         setTelegramToken(data.telegram_token || '');
         setTelegramChatId(data.telegram_chat_id || '');
@@ -166,7 +156,6 @@ function App() {
     if (isLoggedIn && ownerId) fetchSettings();
   }, [isLoggedIn, ownerId]);
 
-  // --- BROWSER WEBCAM NODE LOGIC ---
   useEffect(() => {
     let interval;
     if (isWebcamNodeActive) {
@@ -176,7 +165,6 @@ function App() {
           setBrowserStream(stream);
           if (browserVideoRef.current) browserVideoRef.current.srcObject = stream;
           
-          // Recognition Loop
           interval = setInterval(async () => {
             if (browserVideoRef.current) {
               const canvas = document.createElement('canvas');
@@ -203,7 +191,7 @@ function App() {
                 }
               } catch (e) { console.error("Recognition Error:", e); }
             }
-          }, 3000); // Check every 3 seconds
+          }, 3000);
         } catch (e) {
           console.error("Webcam Error:", e);
           setIsWebcamNodeActive(false);
@@ -223,7 +211,6 @@ function App() {
     };
   }, [isWebcamNodeActive]);
 
-  // --- WHATSAPP QR POLLING ---
   useEffect(() => {
     let qrInterval;
     if (activeTab === 'settings') {
@@ -255,10 +242,10 @@ function App() {
         body: JSON.stringify({
           owner_id: ownerId,
           webhook_url: webhookUrl,
-          whatsapp_enabled: whatsappEnabled,
-          whatsapp_number: whatsappNumber,
-          whatsapp_api_key: whatsappApiKey,
-          whatsapp_provider: whatsappProvider,
+          whatsapp_enabled: true,
+          whatsapp_number: "",
+          whatsapp_api_key: "",
+          whatsapp_provider: "native",
           telegram_enabled: telegramEnabled,
           telegram_token: telegramToken,
           telegram_chat_id: telegramChatId,
@@ -270,16 +257,6 @@ function App() {
     } catch (e) { alert("Failed to save settings"); }
     setIsSavingSettings(false);
   };
-
-  const toggleBlacklist = async (id, status) => {
-    await fetch(`${API_BASE}/api/users/${id}/blacklist`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_blacklisted: status })
-    });
-    fetchData();
-  };
-
 
   const deleteUser = async (id) => {
     if (confirm("Permanently delete this biometric profile?")) {
@@ -295,9 +272,7 @@ function App() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (e) {
-        console.error("Webcam Error:", e);
-      }
+      } catch (e) { console.error("Webcam Error:", e); }
     }
   };
 
@@ -330,10 +305,7 @@ function App() {
         frameData = uploadedImage;
       }
       
-      if (!frameData) {
-        alert("Failed to capture image data.");
-        return;
-      }
+      if (!frameData) return alert("Failed to capture image");
 
       const res = await fetch(`${API_BASE}/api/register`, {
         method: 'POST',
@@ -352,13 +324,8 @@ function App() {
         closeWebcam();
         setRegName('');
         fetchData();
-      } else {
-        alert("Error: " + data.message);
-      }
-    } catch (e) {
-      console.error("Registration Error:", e);
-      alert("Registration failed: " + e.message);
-    }
+      } else { alert("Error: " + data.message); }
+    } catch (e) { alert("Registration failed: " + e.message); }
   };
 
   const handleLogin = async () => {
@@ -376,12 +343,8 @@ function App() {
         localStorage.setItem('owner_id', data.owner_id);
         localStorage.setItem('gym_name', data.gym_name);
         setIsLoggedIn(true);
-      } else {
-        alert(data.detail || "Login failed");
-      }
-    } catch(e) {
-      console.error("Login Error:", e);
-    }
+      } else { alert(data.detail || "Login failed"); }
+    } catch(e) { console.error(e); }
   };
 
   const handleSignup = async () => {
@@ -393,42 +356,11 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gym_name: gymName, email, mobile, password })
       });
-      const data = await res.json();
       if (res.ok) {
         alert("Sign Up successful! Please Login.");
         setAuthMode('login');
-      } else {
-        alert(data.detail || "Sign Up failed");
-      }
-    } catch(e) {
-      console.error("Sign Up Error:", e);
-    }
-  };
-
-  const handleUpdateSubscription = async (userId, expiryDate, planType) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/users/subscription`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, expiry_date: expiryDate, plan_type: planType })
-      });
-      if (res.ok) {
-        alert("Subscription updated!");
-        fetchData();
-      }
-    } catch (e) {
-      console.error("Update failed", e);
-    }
-  };
-
-  const fetchUserActivity = async (userId) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/users/${userId}/activity`);
-      const data = await res.json();
-      setUserActivity(data);
-    } catch (err) {
-      console.error("Activity fetch error:", err);
-    }
+      } else { alert("Sign Up failed"); }
+    } catch(e) { console.error(e); }
   };
 
   const handleUpdateProfile = async () => {
@@ -437,20 +369,12 @@ function App() {
       await fetch(`${API_BASE}/api/users/${editingUser.id}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: newName, 
-          role: newRole,
-          subscription_expiry: newExpiry 
-        }),
+        body: JSON.stringify({ name: newName, role: newRole, subscription_expiry: newExpiry }),
       });
       fetchData();
       setEditingUser(null);
-    } catch (err) {
-      console.error("Update error:", err);
-    }
+    } catch (err) { console.error(err); }
   };
-
-
 
   const handleUpdateNode = async () => {
     if (!cameraUrl) return alert("Please enter a valid Stream Link");
@@ -478,1067 +402,207 @@ function App() {
   };
 
   const handleDeleteNode = async (nodeName) => {
-    if (!confirm(`Are you sure you want to delete ${nodeName}?`)) return;
+    if (!confirm(`Delete ${nodeName}?`)) return;
     try {
-      await fetch(`${API_BASE}/api/nodes/${nodeName}?owner_id=${ownerId}`, {
-        method: 'DELETE'
-      });
+      await fetch(`${API_BASE}/api/nodes/${nodeName}?owner_id=${ownerId}`, { method: 'DELETE' });
       fetchSettings();
     } catch (e) { alert("Failed to delete node."); }
   };
 
   if (!isLoggedIn) {
-    // ... (rest of the login code remains the same)
     return (
       <div className="min-h-screen w-full bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] rounded-full" />
-        
-        <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-8">
-              <Shield size={32} className="text-white" />
-            </div>
-            <h1 className="text-3xl font-black heading-font text-white tracking-tighter mb-2">SENTINEL AI</h1>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-10">
-              {authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}
-            </p>
-            
+        <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-8"><Shield size={32} className="text-white" /></div>
+            <h1 className="text-3xl font-black heading-font text-white tracking-tighter mb-2 uppercase">Sentinel AI</h1>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-10">{authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}</p>
             <div className="w-full space-y-6">
-                {authMode === 'signup' ? (
-                  <>
-                    <div className="space-y-3 animate-in slide-in-from-top-2">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span>
-                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                        <LayoutList className="text-slate-600 flex-shrink-0" size={18} />
-                        <input 
-                          type="text" 
-                          value={gymName}
-                          onChange={e => setGymName(e.target.value)}
-                          placeholder="Power Fitness Gym" 
-                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL ADDRESS</span>
-                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                        <Mail className="text-slate-600 flex-shrink-0" size={18} />
-                        <input 
-                          type="email" 
-                          value={email}
-                          onChange={e => setEmail(e.target.value)}
-                          placeholder="owner@gym.com" 
-                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE NO.</span>
-                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                        <Search className="text-slate-600 flex-shrink-0" size={18} />
-                        <input 
-                          type="tel" 
-                          value={mobile}
-                          onChange={e => setMobile(e.target.value)}
-                          placeholder="+91 8770557655" 
-                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL OR MOBILE NO.</span>
-                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <User className="text-slate-600 flex-shrink-0" size={18} />
-                      <input 
-                        type="text" 
-                        value={identifier}
-                        onChange={e => setIdentifier(e.target.value)}
-                        placeholder="Email or +91..." 
-                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span>
-                  <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                    <Lock className="text-slate-600 flex-shrink-0" size={18} />
-                    <input 
-                      type="password" 
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••" 
-                      className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                    />
-                  </div>
-                </div>
-
                 {authMode === 'signup' && (
-                  <div className="space-y-3 animate-in slide-in-from-top-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">CONFIRM PASSWORD</span>
-                    <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Lock className="text-slate-600 flex-shrink-0" size={18} />
-                      <input 
-                        type="password" 
-                        value={confirmPassword}
-                        onChange={e => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••" 
-                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                      />
-                    </div>
-                  </div>
+                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><LayoutList className="text-slate-600 shrink-0" size={18} /><input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Power Fitness Gym" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
                 )}
+                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">IDENTIFIER</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Mobile" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
+                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
             </div>
-
-            <button 
-              onClick={authMode === 'login' ? handleLogin : handleSignup} 
-              className="w-full bg-white text-black py-4.5 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all shadow-xl active:scale-95"
-            >
-               {authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} />
-            </button>
-
-            <button 
-              onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} 
-              className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors"
-            >
-               {authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}
-            </button>
+            <button onClick={authMode === 'login' ? handleLogin : handleSignup} className="w-full bg-white text-black py-4.5 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all active:scale-95">{authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} /></button>
+            <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">{authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#020617] text-slate-100 font-sans selection:bg-blue-500/30 overflow-x-hidden p-0 m-0">
-      
+    <div className="min-h-screen w-full bg-[#020617] text-slate-100 selection:bg-blue-500/30">
       <div className="max-w-[1400px] mx-auto flex flex-col relative z-20">
-        
-        {/* POLISHED NAVBAR */}
         <nav className="flex items-center justify-between py-5 px-6 border-b border-white/5 bg-[#020617]/50 backdrop-blur-3xl sticky top-0 z-50">
-          <div className="flex items-center gap-4 shrink-0">
-            <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30">
-              <Shield size={18} className="text-white" />
-            </div>
-            <h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">{currentGymName || 'Sentinel_AI'}</h1>
-          </div>
-
+          <div className="flex items-center gap-4 shrink-0"><div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30"><Shield size={18} className="text-white" /></div><h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">{currentGymName || 'Sentinel_AI'}</h1></div>
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
-            <button onClick={() => setActiveTab('dashboard')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Analytics</button>
-            <button onClick={() => setActiveTab('logs')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'logs' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Activity Logs</button>
-            <button onClick={() => setActiveTab('registry')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'registry' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Member Registry</button>
-            <button onClick={() => setActiveTab('settings')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Node Settings</button>
+            {['dashboard', 'logs', 'registry', 'settings'].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>{tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}</button>
+            ))}
           </div>
-
           <div className="flex items-center gap-3">
-            <button onClick={openWebcam} className="py-2.5 px-6 rounded-xl flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 font-black text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-blue-900/20 active:scale-95 shrink-0">
-               <Camera size={14} /> Master Enroll
-            </button>
-            <button onClick={() => setIsLoggedIn(false)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0">
-                <LogOut size={16} />
-            </button>
+            <button onClick={() => openWebcam('local')} className="py-2.5 px-6 rounded-xl flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 font-black text-[9px] uppercase tracking-widest transition-all shadow-xl active:scale-95 shrink-0"><Camera size={14} /> Master Enroll</button>
+            <button onClick={() => setIsLoggedIn(false)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0"><LogOut size={16} /></button>
           </div>
         </nav>
 
         <main className="p-8 md:p-10 flex-1 flex flex-col gap-10">
-          
           <header className="flex justify-between items-end border-b-2 border-white/5 pb-6 text-left">
-            <div>
-              <h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">
-                {activeTab === 'dashboard' ? 'ANALYTICS INSIGHTS' : activeTab === 'registry' ? 'MEMBER REGISTRY' : activeTab === 'settings' ? 'NODE SETTINGS' : 'ACTIVITY LOGS'}
-              </h2>
-              <div className="flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                 <p className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Active surveillance stream ready</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">System Latency</span>
-              <span className="text-md font-black text-emerald-500">18ms Optimized</span>
-            </div>
+            <div><h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">{activeTab.toUpperCase()} PROTOCOL</h2><div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /><p className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Active surveillance stream ready</p></div></div>
+            <div className="text-right"><span className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">System Latency</span><span className="text-md font-black text-emerald-500">18ms Optimized</span></div>
           </header>
 
-          {/* REAL-TIME EXPIRY ALERTS */}
-          {logs.length > 0 && new Date(logs[0].timestamp) > new Date(Date.now() - 30000) && logs[0].subscription_status === 'expired' && (
-            <div className="bg-red-600/20 border-2 border-red-600/50 rounded-[32px] p-8 flex items-center justify-between animate-pulse shadow-2xl shadow-red-900/20">
-              <div className="flex items-center gap-6">
-                <div className="w-16 h-16 rounded-2xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/40">
-                  <ShieldOff size={32} className="text-white" />
-                </div>
-                <div className="text-left">
-                  <h4 className="text-xl font-black text-white tracking-tighter uppercase mb-1">CRITICAL ACCESS DENIED</h4>
-                  <p className="text-[10px] text-red-500 font-black uppercase tracking-widest">
-                    Member <span className="text-white">{logs[0].name}</span> has an expired subscription. Access protocol engaged.
-                  </p>
-                </div>
-              </div>
-              <div className="hidden md:flex flex-col items-end">
-                <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Detected at</span>
-                <span className="text-2xl font-black text-white heading-font tabular-nums">{new Date(logs[0].timestamp).toLocaleTimeString()}</span>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-             
-             {/* DATA LIST AREA */}
              <div className="lg:col-span-12 flex flex-col gap-6">
-                
-                <div className="glass-panel bg-white/[0.01] border-white/5 rounded-[40px] flex flex-col min-h-[500px] shadow-2xl">
-                   <div className="p-8 pb-4 flex flex-wrap justify-between items-center gap-6">
-                      <h3 className="heading-font font-black text-[12px] text-slate-500 tracking-widest uppercase pl-2">
-                        {activeTab === 'registry' ? 'Database_Registry' : activeTab === 'settings' ? 'Camera_Configuration' : 'Full_History'}
-                      </h3>
-                      {(activeTab === 'registry' || activeTab === 'logs') && (
-                        <div className="relative">
-                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700" size={14} />
-                           <input placeholder="SEARCH PROTOCOL..." className="bg-[#020617] border border-white/10 rounded-xl py-2 pl-9 pr-6 text-[9px] w-64 focus:outline-none focus:border-blue-600/50 transition-all font-black uppercase tracking-widest" />
-                        </div>
-                      )}
-                   </div>
-
+                <div className="glass-panel bg-white/[0.01] border-white/5 rounded-[40px] flex flex-col min-h-[500px] shadow-2xl overflow-hidden">
+                    <div className="p-8 pb-4 flex flex-wrap justify-between items-center gap-6 text-left"><h3 className="heading-font font-black text-[12px] text-slate-500 tracking-widest uppercase pl-2">System_Output</h3></div>
                     <div className="flex-1 overflow-y-auto custom-scroll p-4">
                         {activeTab === 'dashboard' ? (
                           <div className="space-y-8 p-4 text-left">
-                            {/* Live Surveillance Grid */}
-                            <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-b-4 border-b-blue-600/30">
+                            <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px]">
                               <div className="flex items-center justify-between mb-8">
-                                <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center">
-                                    <Activity className="text-blue-500" size={20} />
-                                  </div>
-                                  <div>
-                                    <h3 className="text-lg font-black text-white uppercase tracking-tighter">Live_Surveillance_Feed</h3>
-                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Active Neural Tracking Nodes</p>
-                                  </div>
-                                </div>
-                                <button 
-                                  onClick={() => setIsWebcamNodeActive(!isWebcamNodeActive)}
-                                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${isWebcamNodeActive ? 'bg-red-600 text-white shadow-lg' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'}`}
-                                >
-                                  <Camera size={14} /> {isWebcamNodeActive ? 'Disconnect Browser Webcam' : 'Connect Browser Webcam'}
-                                </button>
+                                <div><h3 className="text-lg font-black text-white uppercase tracking-tighter">Live Surveillance Feed</h3><p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Active Neural Tracking Nodes</p></div>
+                                <button onClick={() => setIsWebcamNodeActive(!isWebcamNodeActive)} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 ${isWebcamNodeActive ? 'bg-red-600 text-white' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'}`}><Camera size={14} /> {isWebcamNodeActive ? 'Disconnect Webcam' : 'Connect Webcam'}</button>
                               </div>
-                              
                               <div className="flex flex-col lg:flex-row gap-8">
-                                <div className="flex-1">
-                                  <StreamGrid telemetry={telemetry} onSnapshot={(imgBase64) => setSnapshots(prev => [{id: Date.now(), img: imgBase64, time: new Date().toISOString(), name: "Manual Capture"}, ...prev].slice(0, 5))} />
+                                <div className="flex-1"><StreamGrid telemetry={telemetry} onSnapshot={(img) => setSnapshots(prev => [{id: Date.now(), img, time: new Date().toISOString()}, ...prev].slice(0, 5))} /></div>
+                                <div className="lg:w-[300px] flex flex-col gap-6">
+                                   <div className="glass-panel p-6 bg-blue-600/5 border border-blue-600/20 rounded-3xl"><h3 className="text-[10px] font-black text-white uppercase mb-4">Security Notice</h3><p className="text-[10px] text-slate-500 font-bold leading-relaxed">System is performing real-time biometric hashing. All unrecognized identities are flagged.</p></div>
+                                   {lastRecognition && (<div className="glass-panel p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl animate-in zoom-in-95"><div className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Identity Confirmed</div><div className="text-xl font-black text-white">{lastRecognition.name}</div></div>)}
                                 </div>
-                                
-                                {/* Live Activity / Snapshots Sidebar */}
-                                <div className="lg:w-[320px] shrink-0 flex flex-col gap-6">
-                                   <div className="glass-panel p-6 bg-white/[0.01] border-white/5 rounded-[32px] flex-1">
-                                      <div className="flex items-center justify-between mb-6">
-                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Auto-Captures</h4>
-                                         </div>
-                                         <div className="text-[9px] font-black text-slate-600 uppercase">Recent</div>
-                                      </div>
-
-                                      <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto custom-scroll pr-2">
-                                         {(() => {
-                                            const autoCaptures = Object.values(telemetry).flatMap(node => node.live_detections || []);
-                                            const combined = [...snapshots, ...autoCaptures].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5);
-                                            
-                                            if (combined.length === 0 && logs.length === 0) {
-                                              return (
-                                                <div className="text-center py-8 opacity-50">
-                                                   <Activity size={24} className="mx-auto mb-2 text-slate-600" />
-                                                   <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Detections</p>
-                                                </div>
-                                              );
-                                            }
-
-                                            return combined.length > 0 ? combined.map(snap => (
-                                               <div key={snap.id} className="group relative overflow-hidden rounded-[24px] border border-white/10 aspect-[4/3] bg-black shadow-xl">
-                                                  <img src={snap.img} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" alt="Live Capture" />
-                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                                                  <div className="absolute top-3 right-3">
-                                                     <div className="bg-emerald-500/20 backdrop-blur-md px-2 py-1 rounded border border-emerald-500/20 flex items-center gap-1.5">
-                                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">LIVE</span>
-                                                     </div>
-                                                  </div>
-                                                  <div className="absolute bottom-4 left-4 flex flex-col">
-                                                     <span className="text-lg font-black text-white uppercase tracking-tighter">{snap.name}</span>
-                                                     <div className="flex items-center gap-1.5 mt-1">
-                                                        <Camera size={12} className="text-slate-400" />
-                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(snap.time).toLocaleTimeString()}</span>
-                                                     </div>
-                                                  </div>
-                                               </div>
-                                            )) : logs.slice(0, 4).map(log => {
-                                               const imgUrl = log.image_path?.startsWith('http') ? log.image_path : `${API_BASE}/${log.image_path}`;
-                                               return (
-                                               <div key={log.id} className="group relative overflow-hidden rounded-[24px] border border-white/10 aspect-[4/3] bg-black shadow-xl">
-                                                  <img 
-                                                     src={imgUrl} 
-                                                     className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-700" 
-                                                     alt={log.name} 
-                                                     onError={e => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?q=80&w=1000&auto=format&fit=crop'; }}
-                                                  />
-                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                                                  <div className="absolute bottom-4 left-4 flex flex-col">
-                                                     <span className="text-lg font-black text-white uppercase tracking-tighter">{log.name}</span>
-                                                     <div className="flex items-center gap-1.5 mt-1">
-                                                        <Clock size={12} className="text-slate-400" />
-                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(log.timestamp).toLocaleTimeString()} • {log.location}</span>
-                                                     </div>
-                                                  </div>
-                                               </div>
-                                            )});
-                                         })()}
-                                      </div>
-                                   </div>
-                                </div>
-                                
-                                {isWebcamNodeActive && (
-                                  <div className="lg:w-[350px] shrink-0">
-                                    <div className="glass-panel aspect-video rounded-[32px] overflow-hidden relative border-2 border-blue-600/30 shadow-2xl">
-                                      <video ref={browserVideoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale-[0.2]" />
-                                      <div className="absolute inset-0 bg-blue-600/10 pointer-events-none" />
-                                      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse" />
-                                        <span className="text-[8px] font-black text-white uppercase tracking-widest">LOCAL_BROWSER_NODE</span>
-                                      </div>
-                                      {lastRecognition && (
-                                        <div className="absolute bottom-4 left-4 right-4 bg-blue-600/90 backdrop-blur-md p-4 rounded-2xl border border-white/20 animate-in slide-in-from-bottom-4">
-                                          <div className="text-[8px] font-black text-white/70 uppercase tracking-widest mb-1">Identity Confirmed</div>
-                                          <div className="text-sm font-black text-white">{lastRecognition.name}</div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             </div>
-
-                            {/* Summary Cards */}
-                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                             {[
-                               { label: 'Total Members', value: stats?.summary?.total_members || 0, icon: Users, color: 'text-blue-500' },
-                               { label: 'Active Plans', value: stats?.summary?.active_members || 0, icon: CheckCircle, color: 'text-emerald-500' },
-                               { label: 'Today Entries', value: stats?.summary?.today_attendance || 0, icon: Activity, color: 'text-purple-500' },
-                               { label: 'Expired', value: stats?.summary?.expired_members || 0, icon: ShieldOff, color: 'text-red-500' }
-                             ].map((card, i) => (
-                               <div key={i} className="glass-panel p-6 bg-white/[0.02] border-white/5 rounded-[32px] flex flex-col gap-2">
-                                 <card.icon className={card.color} size={20} />
-                                 <div className="text-3xl font-black text-white mt-2 tracking-tighter">{card.value}</div>
-                                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{card.label}</div>
-                               </div>
-                             ))}
-                           </div>
-
-                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                             {/* Weekly Trend Chart */}
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
-                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8">Weekly_Attendance_Trend</h4>
-                               <div className="flex-1 min-h-0">
-                                 <ResponsiveContainer width="100%" height="100%">
-                                   <AreaChart data={stats?.weekly_trend || []}>
-                                     <defs>
-                                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                         <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                                         <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                                       </linearGradient>
-                                     </defs>
-                                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
-                                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
-                                     <Tooltip 
-                                       contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '16px', fontSize: '10px', fontWeight: 900}}
-                                       itemStyle={{color: '#fff'}}
-                                     />
-                                     <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorCount)" />
-                                   </AreaChart>
-                                 </ResponsiveContainer>
-                               </div>
-                             </div>
-
-                             {/* Peak Hours Chart */}
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] h-[350px] flex flex-col">
-                                <div className="flex items-center justify-between mb-8">
-                                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural_Activity_History</h4>
-                                   <div className="flex gap-3">
-                                      <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2">
-                                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                         <span className="text-[8px] font-black text-emerald-500 uppercase">Cloud_Sync: OK</span>
-                                      </div>
-                                      <button 
-                                        onClick={() => window.open(`${API_BASE}/api/export/attendance?owner_id=${ownerId}`, '_blank')}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-600/20 text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-blue-500/20 transition-all"
-                                      >
-                                         <Download size={14} /> Export_Logs
-                                      </button>
-                                   </div>
-                                </div>
-                               <div className="flex-1 min-h-0">
-                                 <ResponsiveContainer width="100%" height="100%">
-                                   <BarChart data={stats?.peak_hours || []}>
-                                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                                     <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 8, fontWeight: 900}} />
-                                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 10, fontWeight: 900}} />
-                                     <Tooltip 
-                                       contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '16px', fontSize: '10px', fontWeight: 900}}
-                                       cursor={{fill: '#ffffff05'}}
-                                     />
-                                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                                       {(stats?.peak_hours || []).map((entry, index) => (
-                                         <Cell key={`cell-${index}`} fill={entry.count > 0 ? '#2563eb' : '#ffffff05'} />
-                                       ))}
-                                     </Bar>
-                                   </BarChart>
-                                 </ResponsiveContainer>
-                               </div>
-                             </div>
-                           </div>
-
-                           {/* STORAGE TRANSPARENCY SECTION */}
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-blue-600">
-                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Biometric_Storage</h5>
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center">
-                                       <Shield className="text-blue-500" size={24} />
-                                    </div>
-                                    <div>
-                                       <div className="text-lg font-black text-white leading-none">Railway PostgreSQL</div>
-                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Status: Encrypted (pgvector)</div>
-                                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                               {[
+                                 { l: 'Registered', v: users.length, i: Users, c: 'text-blue-500' },
+                                 { l: 'Visits 24h', v: logs.length, i: Activity, c: 'text-emerald-500' },
+                                 { l: 'Expiries', v: users.filter(u => u.subscription_status === 'expired').length, i: ShieldAlert, c: 'text-red-500' },
+                                 { l: 'Uptime', v: `${Math.floor(telemetry?.uptime / 3600) || 0}h`, i: Settings, c: 'text-purple-500' }
+                               ].map((stat, i) => (
+                                 <div key={i} className="glass-panel p-6 bg-white/[0.01] border-white/5 rounded-3xl flex flex-col gap-2">
+                                    <stat.i className={stat.c} size={24} /><div className="text-2xl font-black text-white tracking-tighter">{stat.v}</div><div className="text-[8px] text-slate-500 font-black uppercase tracking-widest">{stat.l}</div>
                                  </div>
-                              </div>
-                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-emerald-600">
-                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Cloud_Artifacts</h5>
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-emerald-600/10 rounded-xl flex items-center justify-center">
-                                       <Activity className="text-emerald-500" size={24} />
-                                    </div>
-                                    <div>
-                                       <div className="text-lg font-black text-white leading-none">Supabase Storage</div>
-                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Bucket: face (registration/)</div>
-                                    </div>
-                                 </div>
-                              </div>
-                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] border-l-4 border-l-purple-600">
-                                 <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">System_Engine</h5>
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-purple-600/10 rounded-xl flex items-center justify-center">
-                                       <Settings className="text-purple-500" size={24} />
-                                    </div>
-                                    <div>
-                                       <div className="text-lg font-black text-white leading-none">Sentinel Engine</div>
-                                       <div className="text-[9px] text-slate-600 font-bold uppercase mt-1">Uptime: {Math.floor(telemetry?.uptime / 3600) || 0}h Active</div>
-                                    </div>
-                                 </div>
-                              </div>
-                           </div>
-                         </div>
+                               ))}
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Attendance Trend</h4><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><AreaChart data={stats?.weekly_trend || []}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="day" hide /><YAxis hide /><Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px'}} /><Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" /></AreaChart></ResponsiveContainer></div></div>
+                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Peak Activity</h4><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><BarChart data={stats?.peak_hours || []}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="hour" hide /><YAxis hide /><Bar dataKey="count" radius={[4, 4, 0, 0]}>{(stats?.peak_hours || []).map((e, idx) => (<Cell key={`cell-${idx}`} fill={e.count > 0 ? '#2563eb' : '#ffffff05'} />))}</Bar></BarChart></ResponsiveContainer></div></div>
+                            </div>
+                          </div>
                         ) : activeTab === 'registry' ? (
-                         <div className="w-full">
-                                <div className="flex flex-col md:flex-row gap-6 mb-10 items-center justify-between">
-                                   <div className="relative w-full md:w-96">
-                                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={20} />
-                                   <input 
-                                     type="text" 
-                                     placeholder="Search neural identities..." 
-                                     value={searchQuery}
-                                     onChange={e => setSearchQuery(e.target.value)}
-                                     className="w-full bg-[#020617] border-2 border-white/5 rounded-2xl py-4 pl-16 pr-6 text-white font-bold focus:border-blue-600 transition-all placeholder:text-slate-800"
-                                   />
-                                </div>
-                                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                                   {['all', 'active', 'expired', 'vip', 'trainer'].map(f => (
-                                      <button 
-                                        key={f}
-                                        onClick={() => setFilterType(f)}
-                                        className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${filterType === f ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
-                                      >
-                                         {f}
-                                      </button>
-                                   ))}
-                                </div>
-                             </div>
-
-                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-fit">
+                          <div className="w-full h-full text-left p-4">
+                             <div className="flex gap-2 mb-8 overflow-x-auto pb-2">{['all', 'active', 'expired'].map(f => (<button key={f} onClick={() => setFilterType(f)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${filterType === f ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-500'}`}>{f}</button>))}</div>
+                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {users.filter(u => {
                                    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase());
                                    const isExpired = u.subscription_expiry ? new Date(u.subscription_expiry) < new Date() : true;
-                                   
                                    if (filterType === 'active') return matchesSearch && !isExpired;
                                    if (filterType === 'expired') return matchesSearch && isExpired;
-                                   if (filterType === 'vip') return matchesSearch && u.role === 'vip';
-                                   if (filterType === 'trainer') return matchesSearch && u.role === 'trainer';
                                    return matchesSearch;
                                 }).map(u => (
-                               <div key={u.id} className="glass-panel p-4 flex items-center justify-between border-white/5 hover:border-blue-600/30 transition-all bg-white/[0.015] rounded-[24px] group">
-                                  <div className="flex items-center gap-4 text-left">
-                                     <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5 relative shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                        <img src={u.image_path?.startsWith('http') ? u.image_path : `${API_BASE}/${u.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Face"; }} className="w-full h-full object-cover" alt="" />
-                                        {u.is_blacklisted && <div className="absolute inset-0 bg-red-600/40 backdrop-blur-[1px] flex items-center justify-center"><ShieldOff size={20} className="text-white" /></div>}
-                                     </div>
-                                     <div className="flex flex-col">
-                                        <div className="text-sm font-black text-white leading-tight tracking-tight">{u.name}</div>
-                                         <div className="flex items-center gap-2 mt-1.5">
-                                            <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest px-1.5 py-0.5 border border-white/5 rounded bg-white/5">{u.role}</div>
-                                            {u.subscription_expiry ? (
-                                              <div className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${new Date(u.subscription_expiry) > new Date() ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                                                Exp: {new Date(u.subscription_expiry).toLocaleDateString()}
-                                              </div>
-                                            ) : (
-                                              <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest px-1.5 py-0.5 bg-white/5 rounded">No Plan</div>
-                                            )}
-                                         </div>
-                                     </div>
-                                  </div>
-                                   <div className="flex gap-1.5">
-                                      <button onClick={() => {
-                                        const nextMonth = new Date();
-                                        nextMonth.setMonth(nextMonth.getMonth() + 1);
-                                        handleUpdateSubscription(u.id, nextMonth.toISOString(), 'monthly');
-                                      }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all" title="Renew 1 Month"><Clock size={15} /></button>
-                                      <button onClick={() => {
-                                        setEditingUser(u); 
-                                        setNewName(u.name);
-                                        setNewRole(u.role);
-                                        setNewExpiry(u.subscription_expiry ? u.subscription_expiry.split('T')[0] : '');
-                                        fetchUserActivity(u.id);
-                                      }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button>
-                                     <button onClick={() => deleteUser(u.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={15} /></button>
-                                  </div>
-                               </div>
-                            ))}
-                         </div>
-                      </div>
-                    ) : activeTab === 'settings' ? (
-                         <div className="p-8 space-y-12 max-w-4xl">
-                             {/* NEW CAMERA CONFIGURATION CARD */}
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
-                               <div className="border-b border-white/5 pb-4">
-                                 <h3 className="text-xl font-black text-white uppercase tracking-tighter">Add / Update Camera</h3>
-                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Connect a new surveillance node</p>
-                               </div>
-                               
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  <div className="space-y-3">
-                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Camera Node Label</label>
-                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                       <Activity className="text-blue-500 flex-shrink-0" size={18} />
-                                       <input 
-                                         type="text" 
-                                         value={cameraName} 
-                                         onChange={e => setCameraName(e.target.value)} 
-                                         placeholder="e.g. Main_Entrance" 
-                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                                       />
-                                     </div>
-                                  </div>
-                                  <div className="space-y-3">
-                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Primary Stream Link</label>
-                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                       <Camera className="text-blue-500 flex-shrink-0" size={18} />
-                                       <input 
-                                         type="text" 
-                                         value={cameraUrl} 
-                                         onChange={e => setCameraUrl(e.target.value)} 
-                                         placeholder="Paste RTSP / IP Camera Link" 
-                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4 overflow-x-auto" 
-                                       />
-                                     </div>
-                                  </div>
-                               </div>
-
-                               <div className="pt-6 space-y-6 text-left">
-                                  <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5">
-                                     <div>
-                                        <h3 className="text-sm font-black text-white uppercase tracking-tighter">P2P Cloud Connection</h3>
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Use Cloud UID for cameras without static IP</p>
-                                     </div>
-                                     <button 
-                                       onClick={() => setUseP2P(!useP2P)}
-                                       className={`w-12 h-6 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-600' : 'bg-slate-800'}`}
-                                     >
-                                        <div className={`w-4 h-4 bg-white rounded-full transition-all ${useP2P ? 'translate-x-6' : 'translate-x-0'}`} />
-                                     </button>
-                                  </div>
-
-                                  {useP2P && (
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-blue-600/5 border border-blue-600/20 rounded-3xl animate-in slide-in-from-top-4">
-                                        <div className="space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Camera Cloud UID</span>
-                                           <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="ABCD-123456-EFGH" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
-                                        </div>
-                                        <div className="space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Device Username</span>
-                                           <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="admin" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
-                                        </div>
-                                        <div className="md:col-span-2 space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Device Password</span>
-                                           <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="••••••••" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-600 transition-all text-sm" />
-                                        </div>
-                                     </div>
-                                  )}
-                               </div>
-
-                               <div className="pt-2 space-y-6 text-left">
-                                  <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5">
-                                     <div>
-                                        <h3 className="text-sm font-black text-white uppercase tracking-tighter">ONVIF Auto-Discovery</h3>
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Automatically fetch RTSP URL from IP camera</p>
-                                     </div>
-                                     <button 
-                                       onClick={() => setUseOnvif(!useOnvif)}
-                                       className={`w-12 h-6 rounded-full p-1 transition-all ${useOnvif ? 'bg-emerald-600' : 'bg-slate-800'}`}
-                                     >
-                                        <div className={`w-4 h-4 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-6' : 'translate-x-0'}`} />
-                                     </button>
-                                  </div>
-
-                                  {useOnvif && (
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-emerald-600/5 border border-emerald-600/20 rounded-3xl animate-in slide-in-from-top-4">
-                                        <div className="space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF Port</span>
-                                           <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="80" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
-                                        </div>
-                                        <div className="space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF User</span>
-                                           <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="admin" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
-                                        </div>
-                                        <div className="md:col-span-2 space-y-3">
-                                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">ONVIF Password</span>
-                                           <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="••••••••" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm" />
-                                        </div>
-                                     </div>
-                                  )}
-                               </div>
-                               
-                               <div className="pt-6">
-                                 <button 
-                                   onClick={handleUpdateNode}
-                                   className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-[20px] font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/20 active:scale-95"
-                                 >
-                                    ADD / UPDATE NODE <ArrowRight size={18} />
-                                 </button>
-                               </div>
-                             </div>
-
-                             {/* ACTIVE NODES LIST */}
-                             {/* ACTIVE NODES LIST CARD */}
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6 text-left shadow-2xl">
-                                <div className="border-b border-white/5 pb-4">
-                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">Command Center Nodes</h3>
-                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Manage your active surveillance grid</p>
+                                <div key={u.id} className="glass-panel p-4 flex items-center justify-between bg-white/[0.015] rounded-[24px] group">
+                                   <div className="flex items-center gap-4"><div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5"><img src={u.image_path?.startsWith('http') ? u.image_path : `${API_BASE}/${u.image_path}`} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" alt="" /></div><div><div className="text-md font-black text-white uppercase tracking-tighter leading-none">{u.name}</div><div className="text-[7px] font-black text-slate-500 uppercase mt-2 px-1.5 py-0.5 bg-white/5 rounded w-fit">Exp: {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'No Plan'}</div></div></div>
+                                   <div className="flex gap-1.5"><button onClick={() => {setEditingUser(u); setNewName(u.name); setNewRole(u.role); setNewExpiry(u.subscription_expiry ? u.subscription_expiry.split('T')[0] : '');}} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button><button onClick={() => deleteUser(u.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={15} /></button></div>
                                 </div>
-                                <div className="grid grid-cols-1 gap-4 pt-2">
-                                  {savedNodes.map(node => (
-                                    <div key={node.name} className="flex items-center justify-between p-4 bg-[#020617] border-2 border-white/5 rounded-3xl hover:border-blue-500/50 transition-colors group">
-                                      <div className="flex items-center gap-5">
-                                        <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500 shrink-0">
-                                          <Camera size={20} />
-                                        </div>
-                                        <div className="min-w-0">
-                                          <div className="text-sm font-black text-white uppercase tracking-widest">{node.name}</div>
-                                          <div className="text-[10px] text-slate-500 max-w-[200px] md:max-w-[400px] truncate font-mono mt-1">{node.url}</div>
-                                        </div>
-                                      </div>
-                                      <button 
-                                        onClick={() => handleDeleteNode(node.name)}
-                                        className="w-12 h-12 flex items-center justify-center bg-white/5 text-slate-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shrink-0"
-                                      >
-                                        <Trash2 size={18} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                  {savedNodes.length === 0 && (
-                                    <div className="text-center py-10 opacity-50 bg-[#020617] rounded-3xl border-2 border-white/5 border-dashed">
-                                       <Camera size={24} className="mx-auto mb-3 text-slate-600" />
-                                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No nodes configured</p>
-                                    </div>
-                                  )}
+                             ))}</div>
+                          </div>
+                        ) : activeTab === 'settings' ? (
+                          <div className="p-8 space-y-12 max-w-4xl text-left">
+                              <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-8 shadow-2xl">
+                                <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Node Configuration</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Connect surveillance hardware</p></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                   <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Node Label</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4"><Activity className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraName} onChange={e => setCameraName(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
+                                   <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">RTSP Link</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4"><Camera className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraUrl} onChange={e => setCameraUrl(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
                                 </div>
-                             </div>
-
-                             {/* SMART NOTIFICATIONS CARD */}
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
-                                <div className="border-b border-white/5 pb-4">
-                                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Notifications</h3>
-                                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Telegram via Native Bridge</p>
-                                 </div>
-                                 <div className="space-y-8 pt-2">
-                                   {/* --- DIRECT WHATSAPP QR SCANNER --- */}
-                                   <div className="glass-panel p-8 bg-white/[0.02] border-2 border-white/10 rounded-[32px] overflow-hidden relative">
-                                      <div className="flex flex-col md:flex-row items-center gap-10">
-                                         <div className="shrink-0">
-                                            {whatsappStatus === 'Connected' ? (
-                                               <div className="w-48 h-48 bg-emerald-500/10 rounded-[32px] border-4 border-emerald-500/20 flex flex-col items-center justify-center gap-4">
-                                                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                                                     <CheckCircle size={40} className="text-white" />
-                                                  </div>
-                                                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">WA Connected</span>
-                                                  <button onClick={handleLogoutWA} className="text-[8px] font-black text-slate-500 hover:text-red-500 uppercase underline">Logout</button>
-                                               </div>
-                                            ) : whatsappQr ? (
-                                               <div className="p-4 bg-white rounded-[32px] shadow-2xl">
-                                                  <img src={whatsappQr} className="w-40 h-40" alt="WA QR" />
-                                               </div>
-                                            ) : (
-                                               <div className="w-48 h-48 bg-[#020617] border-2 border-white/5 border-dashed rounded-[32px] flex items-center justify-center">
-                                                  <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-                                               </div>
-                                            )}
-                                         </div>
-                                         <div className="flex-1 text-center md:text-left">
-                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">Direct WhatsApp Login</h3>
-                                            <p className="text-[11px] text-slate-500 font-bold uppercase leading-relaxed max-w-sm mb-6">Scan this QR code with your phone (Linked Devices) to send AI alerts directly from your WhatsApp. No API keys required.</p>
-                                            <div className="flex items-center justify-center md:justify-start gap-4">
-                                               <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${whatsappStatus === 'Connected' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                  Status: {whatsappStatus}
-                                               </div>
-                                            </div>
-                                         </div>
-                                      </div>
-                                   </div>
-
-                                   {/* --- TELEGRAM ALERTS --- */}
-                                   <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6">
-                                      <div className="flex items-center justify-between">
-                                         <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${telegramEnabled ? 'bg-blue-400/10 text-blue-400' : 'bg-slate-800/10 text-slate-500'}`}>
-                                               <Send size={20} />
-                                            </div>
-                                            <div>
-                                               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Telegram Alerts</h3>
-                                               <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Free & Instant Cloud Backup Notifications</p>
-                                            </div>
-                                         </div>
-                                         <button 
-                                           onClick={() => setTelegramEnabled(!telegramEnabled)}
-                                           className={`w-12 h-6 rounded-full p-1 transition-all ${telegramEnabled ? 'bg-blue-500' : 'bg-slate-800'}`}
-                                         >
-                                            <div className={`w-4 h-4 bg-white rounded-full transition-all ${telegramEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                         </button>
-                                      </div>
-
-                                      {telegramEnabled && (
-                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-blue-500/5 border border-blue-500/20 rounded-3xl animate-in slide-in-from-top-4">
-                                            <div className="space-y-3">
-                                               <div className="flex items-center justify-between ml-2">
-                                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bot Token</span>
-                                                  <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-[8px] text-blue-400 underline font-black uppercase tracking-widest">Create Bot</a>
-                                               </div>
-                                               <input type="password" value={telegramToken} onChange={e => setTelegramToken(e.target.value)} placeholder="123456789:ABCDE..." className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-500 transition-all text-sm outline-none" />
-                                            </div>
-                                            <div className="space-y-3">
-                                               <div className="flex items-center justify-between ml-2">
-                                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Chat ID</span>
-                                                  <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-[8px] text-blue-400 underline font-black uppercase tracking-widest">Get ID</a>
-                                               </div>
-                                               <input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="987654321" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-500 transition-all text-sm outline-none" />
-                                            </div>
-                                         </div>
-                                      )}
-                                   </div>
-
-                                   {/* --- LEGACY WEBHOOKS --- */}
-                                   <div className="space-y-3">
-                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Legacy Webhook URL</label>
-                                     <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
-                                       <Bell className="text-blue-500 flex-shrink-0" size={18} />
-                                       <input 
-                                         type="text" 
-                                         value={webhookUrl} 
-                                         onChange={e => setWebhookUrl(e.target.value)} 
-                                         placeholder="https://webhook.site/..." 
-                                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
-                                       />
+                                <button onClick={handleUpdateNode} className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-[20px] font-black text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl active:scale-95">ADD / UPDATE NODE <ArrowRight size={18} /></button>
+                              </div>
+                              <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-6 shadow-2xl">
+                                 <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Active Nodes</h3></div>
+                                 <div className="grid grid-cols-1 gap-4">
+                                   {savedNodes.map(node => (
+                                     <div key={node.name} className="flex items-center justify-between p-4 bg-[#020617] border-2 border-white/5 rounded-3xl hover:border-blue-500/50 transition-all group">
+                                       <div className="flex items-center gap-5"><div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500"><Camera size={20} /></div><div><div className="text-sm font-black text-white uppercase">{node.name}</div><div className="text-[9px] text-slate-500 truncate mt-1 w-[200px] md:w-[400px]">{node.url}</div></div></div>
+                                       <button onClick={() => handleDeleteNode(node.name)} className="w-12 h-12 flex items-center justify-center bg-white/5 text-slate-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
                                      </div>
-                                   </div>
+                                   ))}
                                  </div>
                               </div>
-
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <button 
-                                      onClick={() => setNotifyOnEntry(!notifyOnEntry)}
-                                      className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all group ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-[#020617] border-white/5 text-slate-500 hover:border-white/20'}`}
-                                    >
-                                      <div className="flex flex-col items-start">
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Every Entry</span>
-                                        <span className="text-sm font-black mt-1">Notify on Check-in</span>
-                                      </div>
-                                      <CheckCircle className={`${notifyOnEntry ? 'text-blue-500' : 'text-slate-700 group-hover:text-slate-500'} transition-colors`} size={24} />
-                                    </button>
-
-                                    <button 
-                                      onClick={() => setNotifyOnExpiry(!notifyOnExpiry)}
-                                      className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all group ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-[#020617] border-white/5 text-slate-500 hover:border-white/20'}`}
-                                    >
-                                      <div className="flex flex-col items-start">
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Critical Alert</span>
-                                        <span className="text-sm font-black mt-1">Expiry Notifications</span>
-                                      </div>
-                                      <AlertTriangle className={`${notifyOnExpiry ? 'text-red-500' : 'text-slate-700 group-hover:text-slate-500'} transition-colors`} size={24} />
-                                    </button>
-                                  </div>
-
-                                  <div className="pt-4">
-                                    <button 
-                                      onClick={saveNotificationSettings}
-                                      disabled={isSavingSettings}
-                                      className="w-full md:w-auto px-10 py-5 bg-emerald-600 text-white rounded-[20px] font-black heading-font text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
-                                    >
-                                      {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} />
-                                    </button>
-                                  </div>
-                                </div>
-                             </div>
+                              <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-8 shadow-2xl">
+                                 <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Alerts</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-channel delivery system</p></div>
+                                 <div className="space-y-6">
+                                    <div className="glass-panel p-8 bg-white/[0.02] border-2 border-white/10 rounded-[32px] flex flex-col md:flex-row items-center gap-10">
+                                       <div className="shrink-0">{whatsappStatus === 'Connected' ? (<div className="w-40 h-40 bg-emerald-500/10 rounded-[32px] border-4 border-emerald-500/20 flex flex-col items-center justify-center gap-4"><CheckCircle size={40} className="text-emerald-500" /><button onClick={handleLogoutWA} className="text-[9px] text-slate-500 underline uppercase font-black">Logout</button></div>) : (<div className="p-4 bg-white rounded-[32px]">{whatsappQr ? <img src={whatsappQr} className="w-32 h-32" alt="QR" /> : <div className="w-32 h-32 flex items-center justify-center text-black text-[9px] font-black">SCANNING...</div>}</div>)}</div>
+                                       <div className="flex-1"><h3 className="text-xl font-black text-white uppercase mb-2">WhatsApp Bridge</h3><p className="text-[10px] text-slate-500 font-bold leading-relaxed mb-4">Scan the QR code with your WhatsApp app (Linked Devices) to send AI alerts directly from your number.</p><div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase w-fit ${whatsappStatus === 'Connected' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>Status: {whatsappStatus}</div></div>
+                                    </div>
+                                    <div className="glass-panel p-8 bg-white/[0.01] rounded-[32px] space-y-6">
+                                       <div className="flex items-center justify-between"><div className="flex items-center gap-4"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${telegramEnabled ? 'bg-blue-400/10 text-blue-400' : 'bg-white/5 text-slate-500'}`}><Send size={20} /></div><div><h3 className="text-sm font-black text-white uppercase">Telegram Bot</h3><p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Free instant notifications</p></div></div><button onClick={() => setTelegramEnabled(!telegramEnabled)} className={`w-12 h-6 rounded-full p-1 transition-all ${telegramEnabled ? 'bg-blue-500' : 'bg-slate-800'}`}><div className={`w-4 h-4 bg-white rounded-full transition-all ${telegramEnabled ? 'translate-x-6' : 'translate-x-0'}`} /></button></div>
+                                       {telegramEnabled && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4"><input type="password" value={telegramToken} onChange={e => setTelegramToken(e.target.value)} placeholder="Bot Token" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /><input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="Chat ID" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /></div>)}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <button onClick={() => setNotifyOnEntry(!notifyOnEntry)} className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}><div><span className="text-[8px] font-black uppercase block opacity-60">Every Scan</span><span className="text-xs font-black">Notify on Entry</span></div><CheckCircle size={24} /></button>
+                                      <button onClick={() => setNotifyOnExpiry(!notifyOnExpiry)} className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}><div><span className="text-[8px] font-black uppercase block opacity-60">Critical</span><span className="text-xs font-black">Notify Expiries</span></div><AlertTriangle size={24} /></button>
+                                    </div>
+                                    <button onClick={saveNotificationSettings} className="w-full md:w-auto px-10 py-5 bg-emerald-600 text-white rounded-[20px] font-black text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl disabled:opacity-50" disabled={isSavingSettings}>{isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} /></button>
+                                 </div>
+                              </div>
                           </div>
-                       ) : (
-                         <div className="divide-y divide-white/5">
-                            {logs.map((l, i) => (
-                               <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group animate-in slide-in-from-bottom-2 duration-500">
-                                  <div className="flex items-center gap-6 text-left">
-                                     <div className="w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5 shadow-2xl shrink-0 group-hover:border-blue-600/20 transition-all duration-500">
-                                        <img src={l.image_path?.startsWith('http') ? l.image_path : `${API_BASE}/${l.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Scan"; }} className="w-full h-full object-cover" alt="" />
-                                     </div>
-                                     <div>
-                                        <div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div>
-                                         <div className="flex items-center gap-2 mt-2">
-                                            <div className={`inline-flex items-center px-3 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest ${l.role === 'government' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/10' : 'bg-blue-500/10 text-blue-400 border-blue-500/10'}`}>{l.role}</div>
-                                            <div className={`inline-flex items-center px-3 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest ${l.subscription_status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/10' : 'bg-red-500/10 text-red-500 border-red-500/10'}`}>{l.subscription_status}</div>
-                                         </div>
-                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-6 text-right">
-                                     <div className="flex flex-col items-end gap-2">
-                                        <div className="text-2xl font-black text-blue-500 heading-font leading-none tracking-tighter">{new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                        <div className="text-[9px] font-black text-slate-700 uppercase flex items-center gap-2">
-                                           <MapPin size={10} /> {l.location}
-                                        </div>
-                                     </div>
-                                     <button onClick={() => { setEditingUser({id: l.face_id, name: l.name}); setNewName(l.name); }} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:bg-blue-600 hover:text-white transition-all opacity-0 group-hover:opacity-100">
-                                        <Edit2 size={16} />
-                                     </button>
-                                  </div>
-                               </div>
-                            ))}
-                         </div>
-                      )}
-                   </div>
+                        ) : (
+                          <div className="divide-y divide-white/5">
+                             {logs.map(l => (
+                                <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group text-left">
+                                   <div className="flex items-center gap-6"><div className="w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5"><img src={l.image_path?.startsWith('http') ? l.image_path : `${API_BASE}/${l.image_path}`} className="w-full h-full object-cover" alt="" /></div><div><div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div><div className="flex items-center gap-2 mt-2"><div className="text-[8px] font-black uppercase px-3 py-1 rounded bg-blue-500/10 text-blue-400">{l.role}</div><div className={`text-[8px] font-black uppercase px-3 py-1 rounded ${l.subscription_status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{l.subscription_status}</div></div></div></div>
+                                   <div className="flex items-center gap-6 text-right"><div><div className="text-2xl font-black text-blue-500 tabular-nums">{new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><div className="text-[8px] font-black text-slate-700 uppercase mt-1">{l.location}</div></div></div>
+                                </div>
+                             ))}
+                          </div>
+                        )}
+                    </div>
                 </div>
              </div>
-
-             {/* FIXED TELEMETRY TIER REMOVED */}
           </div>
         </main>
       </div>
 
-      {/* FIXED RENAME MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-3xl z-[200] flex items-center justify-center p-6 md:p-12 overflow-y-auto">
-          <div className="glass-panel w-full max-w-2xl p-10 md:p-16 border-4 border-white/10 rounded-[48px] shadow-[0_0_100px_rgba(0,0,0,0.8)] relative bg-[#020617] animate-in zoom-in-95 duration-300 my-auto">
-             <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/10 blur-[80px] rounded-full pointer-events-none" />
-             
-             <div className="flex items-center gap-6 mb-12">
-                <div className="w-20 h-20 rounded-[28px] overflow-hidden border-4 border-white/10 shadow-2xl">
-                   <img src={editingUser.image_path?.startsWith('http') ? editingUser.image_path : `${API_BASE}/${editingUser.image_path}`} onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Face"; }} className="w-full h-full object-cover" alt="" />
+        <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-3xl z-[200] flex items-center justify-center p-6">
+          <div className="glass-panel w-full max-w-2xl p-10 border-4 border-white/10 rounded-[48px] shadow-2xl bg-[#020617] animate-in zoom-in-95">
+             <div className="flex items-center gap-6 mb-8 text-left"><div className="w-20 h-20 rounded-[28px] overflow-hidden border-4 border-white/10 shadow-2xl"><img src={editingUser.image_path?.startsWith('http') ? editingUser.image_path : `${API_BASE}/${editingUser.image_path}`} className="w-full h-full object-cover" alt="" /></div><div><h2 className="text-3xl font-black heading-font text-white uppercase leading-none">Modify Identity</h2><p className="text-[10px] text-slate-500 font-bold uppercase mt-2">Biometric Registry Sync</p></div></div>
+             <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2 text-left"><label className="text-[9px] font-black text-slate-500 uppercase ml-4">Full Name</label><input value={newName} onChange={e => setNewName(e.target.value)} className="w-full bg-white/5 border-2 border-white/5 rounded-2xl py-4 px-6 text-white font-black outline-none" /></div>
+                   <div className="space-y-2 text-left"><label className="text-[9px] font-black text-slate-500 uppercase ml-4">Role</label><select value={newRole} onChange={e => setNewRole(e.target.value)} className="w-full bg-[#020617] border-2 border-white/5 rounded-2xl py-4 px-6 text-white font-black outline-none appearance-none"><option value="member">MEMBER</option><option value="vip">VIP</option><option value="trainer">TRAINER</option></select></div>
                 </div>
-                <div>
-                   <h2 className="text-3xl font-black heading-font text-white tracking-tight leading-none">MEMBER_PROTOCOL</h2>
-                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] mt-3">Identity Modification Matrix</p>
-                </div>
-             </div>
-
-             {/* Personal Activity Chart */}
-             <div className="mb-10 glass-panel p-6 bg-white/[0.02] border-white/5 rounded-[32px] h-[180px] flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                   <h4 className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Attendance_Consistency_30D</h4>
-                   <div className="text-[8px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded">
-                      Total Visits: {userActivity.reduce((acc, curr) => acc + curr.count, 0)}
-                   </div>
-                </div>
-                <div className="flex-1">
-                   <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={userActivity}>
-                         <defs>
-                            <linearGradient id="colorUser" x1="0" y1="0" x2="0" y2="1">
-                               <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                               <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                            </linearGradient>
-                         </defs>
-                         <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorUser)" />
-                      </AreaChart>
-                   </ResponsiveContainer>
-                </div>
-             </div>
-
-             <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Display Identity</label>
-                      <input 
-                        value={newName} 
-                        onChange={e => setNewName(e.target.value)} 
-                        className="w-full bg-white/[0.03] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner" 
-                      />
-                   </div>
-                   <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Access Tier</label>
-                      <select 
-                        value={newRole} 
-                        onChange={e => setNewRole(e.target.value)} 
-                        className="w-full bg-[#020617] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner appearance-none"
-                      >
-                         <option value="member">MEMBER</option>
-                         <option value="vip">VIP</option>
-                         <option value="trainer">TRAINER</option>
-                         <option value="staff">STAFF</option>
-                         <option value="admin">ADMIN</option>
-                      </select>
-                   </div>
-                </div>
-
-                <div className="space-y-4">
-                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest block ml-4 text-left">Subscription Cycle Expiry</label>
-                   <div className="flex flex-col md:flex-row gap-4">
-                      <input 
-                        type="date"
-                        value={newExpiry} 
-                        onChange={e => setNewExpiry(e.target.value)} 
-                        className="flex-1 bg-white/[0.03] border-4 border-white/5 rounded-[28px] py-5 px-8 text-xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner [color-scheme:dark]" 
-                      />
-                      <div className="flex gap-2">
-                         {[
-                            { label: '+1M', days: 30 },
-                            { label: '+3M', days: 90 },
-                            { label: '+1Y', days: 365 }
-                         ].map(preset => (
-                            <button 
-                              key={preset.label}
-                              onClick={() => {
-                                 const d = new Date(newExpiry || new Date());
-                                 d.setDate(d.getDate() + preset.days);
-                                 setNewExpiry(d.toISOString().split('T')[0]);
-                              }}
-                              className="px-4 bg-white/5 hover:bg-blue-600 text-[10px] font-black text-white rounded-2xl transition-all border-2 border-white/5"
-                            >
-                               {preset.label}
-                            </button>
-                         ))}
-                      </div>
-                   </div>
-                </div>
-
-                <div className="flex gap-4 pt-4">
-                   <button onClick={handleUpdateProfile} className="py-6 px-10 bg-blue-600 text-white font-black rounded-[32px] flex-1 text-lg transition-all shadow-2xl shadow-blue-900/40 hover:bg-blue-500 active:scale-95 leading-none">COMMIT CHANGES</button>
-                   <button onClick={() => setEditingUser(null)} className="py-6 px-10 bg-white/5 text-slate-500 font-black rounded-[32px] flex-1 text-lg transition-all border-2 border-white/5 hover:bg-white/10 leading-none">DISCARD</button>
-                </div>
-             </div>
-          </div>
-        </div>      )}
-
-      {isRegisterOpen && (
-        <div className="fixed inset-0 bg-[#020617]/98 backdrop-blur-3xl z-[100] flex items-center justify-center p-6 md:p-16">
-          <div className="glass-panel w-full max-w-5xl flex flex-col md:flex-row border-white/10 rounded-[64px] shadow-2xl animate-in zoom-in-95 duration-500 border-2 relative">
-             
-             <button onClick={closeWebcam} className="absolute top-10 right-10 z-[110] w-14 h-14 rounded-2xl flex items-center justify-center bg-white/5 hover:bg-white/10 text-white transition-all border border-white/10 shadow-2xl">
-                <X size={32} />
-             </button>
-
-             <div className="flex-1 p-16 flex flex-col gap-12 bg-white/[0.015] text-left">
-                <div>
-                   <h2 className="text-4xl font-black heading-font text-white tracking-widest uppercase">ENROLLMENT</h2>
-                   <p className="text-slate-600 text-lg mt-4 font-medium leading-relaxed">Neural identity master path sync active.</p>
-                </div>
-                <div className="space-y-8">
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Official Subject Name</label>
-                      <input 
-                        value={regName} 
-                        onChange={e => setRegName(e.target.value)} 
-                        placeholder="Ex: Marcus Vane" 
-                        className="w-full bg-[#020617] border-4 border-white/5 rounded-[32px] py-6 px-10 text-2xl text-white font-black focus:outline-none focus:border-blue-600 transition-all placeholder:text-slate-900 shadow-inner"
-                      />
-                   </div>
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Security Ops Role</label>
-                      <select 
-                        value={regRole} 
-                        onChange={e => setRegRole(e.target.value)}
-                        className="w-full bg-[#020617] border-4 border-white/5 rounded-[32px] py-6 px-10 text-2xl text-white font-black focus:outline-none focus:border-blue-600 transition-all shadow-inner appearance-none"
-                      >
-                        <option value="member">MEMBER</option>
-                        <option value="government">GOV_VIP</option>
-                      </select>
-                   </div>
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-3">Capture Source</label>
-                      <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl">
-                         <button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'local' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Laptop Webcam</button>
-                         <button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Phone Camera</button>
-                         <button onClick={() => { closeWebcam(); setRegSource('file'); fileInputRef.current?.click(); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regSource === 'file' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Upload Photo</button>
-                      </div>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setUploadedImage(reader.result);
-                              setRegSource('file');
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                   </div>
-                </div>
-
-                <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-8 rounded-[40px] font-black heading-font text-2xl flex items-center justify-center gap-6 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black hover:scale-[1.01] active:scale-95 shadow-2xl'}`}>
-                   <ScannerIcon size={32} /> INITIALIZE SCAN
-                </button>
-             </div>
-
-             <div className="lg:w-[450px] shrink-0 bg-black relative p-12 flex items-center justify-center">
-                <div className="w-full h-full rounded-[48px] overflow-hidden relative border-4 border-white/10 shadow-[0_0_80px_rgba(59,130,246,0.2)]">
-                   {regSource === 'local' ? (
-                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] grayscale-[0.2]" />
-                   ) : regSource === 'remote' ? (
-                     <img 
-                       id="sentinel-enroll-stream"
-                       src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} 
-                       className="w-full h-full object-cover" 
-                       alt="Remote Stream"
-                       crossOrigin="anonymous"
-                       onError={(e) => { e.target.src = "https://via.placeholder.com/640x480?text=Camera+Offline"; }}
-                     />
-                   ) : (
-                     <img src={uploadedImage || "https://via.placeholder.com/640x480?text=Select+File"} className="w-full h-full object-cover" alt="Uploaded Preview" />
-                   )}
-                   <div className="scanner-overlay !z-10 bg-blue-900/10">
-                      <div className="scanner-line !h-[6px] !bg-blue-400 !shadow-[0_0_30px_#3b82f6]"></div>
-                      <div className="face-target !border-blue-500/30 !w-[280px] !h-[380px] !border-[3px] !rounded-[80px]"></div>
-                      <div className="absolute top-8 left-8 flex items-center gap-4 bg-black/80 px-5 py-2 rounded-2xl backdrop-blur-3xl border border-white/10">
-                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${regSource === 'local' ? 'bg-red-600 shadow-[0_0_15px_#dc2626]' : regSource === 'remote' ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-blue-500 shadow-[0_0_15px_#3b82f6]'}`} />
-                          <span className="text-[9px] font-black mono-font text-white uppercase tracking-widest">{regSource === 'local' ? 'Local Webcam' : regSource === 'remote' ? 'Phone Link Active' : 'Manual File Upload'}</span>
-                      </div>
-                   </div>
-                </div>
+                <div className="space-y-2 text-left"><label className="text-[9px] font-black text-slate-500 uppercase ml-4">Subscription Expiry</label><input type="date" value={newExpiry} onChange={e => setNewExpiry(e.target.value)} className="w-full bg-white/5 border-2 border-white/5 rounded-2xl py-4 px-6 text-white font-black outline-none [color-scheme:dark]" /></div>
+                <div className="flex gap-4 pt-4"><button onClick={handleUpdateProfile} className="py-5 px-10 bg-blue-600 text-white font-black rounded-2xl flex-1 shadow-xl hover:bg-blue-500 active:scale-95 transition-all">SAVE CHANGES</button><button onClick={() => setEditingUser(null)} className="py-5 px-10 bg-white/5 text-slate-500 font-black rounded-2xl flex-1 border-2 border-white/5 hover:bg-white/10 transition-all">CANCEL</button></div>
              </div>
           </div>
         </div>
       )}
 
+      {isRegisterOpen && (
+        <div className="fixed inset-0 bg-[#020617]/98 backdrop-blur-3xl z-[100] flex items-center justify-center p-6">
+          <div className="glass-panel w-full max-w-5xl flex flex-col md:flex-row border-white/10 rounded-[64px] shadow-2xl relative border-2 overflow-hidden">
+             <button onClick={closeWebcam} className="absolute top-8 right-8 z-[110] w-12 h-12 rounded-2xl flex items-center justify-center bg-white/5 text-white hover:bg-red-600 transition-all"><X size={24} /></button>
+             <div className="flex-1 p-12 flex flex-col gap-10 bg-white/[0.015] text-left">
+                <div><h2 className="text-4xl font-black heading-font text-white tracking-widest uppercase">ENROLLMENT</h2><p className="text-slate-600 text-lg mt-2 font-medium">Neural identity master path sync active.</p></div>
+                <div className="space-y-6">
+                   <div className="space-y-2"><label className="text-[9px] font-black text-slate-600 uppercase ml-3">Subject Name</label><input value={regName} onChange={e => setRegName(e.target.value)} placeholder="Marcus Vane" className="w-full bg-[#020617] border-4 border-white/5 rounded-[32px] py-5 px-8 text-xl text-white font-black outline-none" /></div>
+                   <div className="flex gap-2 p-1 bg-[#020617] border-2 border-white/5 rounded-2xl"><button onClick={() => { closeWebcam(); openWebcam('local'); }} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all ${regSource === 'local' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Webcam</button><button onClick={() => { closeWebcam(); openWebcam('remote'); }} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all ${regSource === 'remote' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Phone</button><button onClick={() => { setRegSource('file'); fileInputRef.current?.click(); }} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all ${regSource === 'file' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>File</button></div>
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setUploadedImage(reader.result); setRegSource('file'); }; reader.readAsDataURL(file); } }} />
+                </div>
+                <button onClick={captureAndRegister} disabled={!regName} className={`w-full py-6 rounded-[32px] font-black heading-font text-xl flex items-center justify-center gap-4 transition-all ${!regName ? 'bg-slate-900 text-slate-800 opacity-50' : 'bg-white text-black shadow-2xl active:scale-95'}`}><ScannerIcon size={28} /> INITIALIZE SCAN</button>
+             </div>
+             <div className="lg:w-[400px] bg-black flex items-center justify-center p-8">
+                <div className="w-full aspect-[3/4] rounded-[48px] overflow-hidden relative border-4 border-white/10 shadow-2xl">
+                   {regSource === 'local' ? ( <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] grayscale-[0.2]" /> ) : regSource === 'remote' ? ( <img id="sentinel-enroll-stream" src={`${API_BASE}/api/stream/Gym_Camera?t=${Date.now()}`} className="w-full h-full object-cover" alt="Remote" crossOrigin="anonymous" onError={(e) => { e.target.src = "https://via.placeholder.com/640?text=Camera+Offline"; }} /> ) : ( <img src={uploadedImage || "https://via.placeholder.com/640?text=Select+File"} className="w-full h-full object-cover" alt="Preview" /> )}
+                   <div className="scanner-overlay !z-10 bg-blue-900/10"><div className="scanner-line !h-[6px] !bg-blue-400"></div><div className="face-target !border-blue-500/30 !w-[220px] !h-[300px] !border-[3px] !rounded-[60px]"></div></div>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
-
