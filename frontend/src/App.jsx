@@ -61,6 +61,11 @@ function App() {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappApiKey, setWhatsappApiKey] = useState('');
   const [whatsappProvider, setWhatsappProvider] = useState('callmebot');
+  const [whatsappQr, setWhatsappQr] = useState(null);
+  const [whatsappStatus, setWhatsappStatus] = useState('Disconnected');
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [notifyOnEntry, setNotifyOnEntry] = useState(true);
   const [notifyOnExpiry, setNotifyOnExpiry] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -129,6 +134,9 @@ function App() {
         setWhatsappNumber(data.whatsapp_number || '');
         setWhatsappApiKey(data.whatsapp_api_key || '');
         setWhatsappProvider(data.whatsapp_provider || 'callmebot');
+        setTelegramEnabled(data.telegram_enabled || false);
+        setTelegramToken(data.telegram_token || '');
+        setTelegramChatId(data.telegram_chat_id || '');
         setNotifyOnEntry(data.notify_on_entry);
         setNotifyOnExpiry(data.notify_on_expiry);
       }
@@ -213,7 +221,28 @@ function App() {
       if (browserStream) browserStream.getTracks().forEach(t => t.stop());
       clearInterval(interval);
     };
-  }, [isWebcamNodeActive]);
+  // --- WHATSAPP QR POLLING ---
+  useEffect(() => {
+    let qrInterval;
+    if (activeTab === 'settings') {
+      qrInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/whatsapp/qr`);
+          const data = await res.json();
+          setWhatsappQr(data.qr);
+          setWhatsappStatus(data.status);
+        } catch (e) {}
+      }, 5000);
+    }
+    return () => clearInterval(qrInterval);
+  }, [activeTab]);
+
+  const handleLogoutWA = async () => {
+     try {
+       await fetch(`${API_BASE}/api/whatsapp/logout`, { method: 'POST' });
+       alert("Logged out from WhatsApp");
+     } catch (e) {}
+  };
 
   const saveNotificationSettings = async () => {
     setIsSavingSettings(true);
@@ -228,6 +257,9 @@ function App() {
           whatsapp_number: whatsappNumber,
           whatsapp_api_key: whatsappApiKey,
           whatsapp_provider: whatsappProvider,
+          telegram_enabled: telegramEnabled,
+          telegram_token: telegramToken,
+          telegram_chat_id: telegramChatId,
           notify_on_entry: notifyOnEntry,
           notify_on_expiry: notifyOnExpiry
         })
@@ -1132,64 +1164,84 @@ function App() {
                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
                                 <div className="border-b border-white/5 pb-4">
                                   <h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Notifications</h3>
-                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Telegram via Webhooks</p>
-                                </div>
-
-                                <div className="space-y-6 pt-2">
-                                   {/* WhatsApp Configuration Toggle */}
-                                   <div className="flex items-center justify-between p-5 bg-[#020617] rounded-2xl border-2 border-white/5 shadow-inner">
-                                      <div className="flex items-center gap-4">
-                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${whatsappEnabled ? 'bg-emerald-600/10 text-emerald-500' : 'bg-slate-800/10 text-slate-500'}`}>
-                                            <Bell size={20} />
+                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Tel                                 <div className="space-y-8 pt-2">
+                                   {/* --- DIRECT WHATSAPP QR SCANNER --- */}
+                                   <div className="glass-panel p-8 bg-white/[0.02] border-2 border-white/10 rounded-[32px] overflow-hidden relative">
+                                      <div className="flex flex-col md:flex-row items-center gap-10">
+                                         <div className="shrink-0">
+                                            {whatsappStatus === 'Connected' ? (
+                                               <div className="w-48 h-48 bg-emerald-500/10 rounded-[32px] border-4 border-emerald-500/20 flex flex-col items-center justify-center gap-4">
+                                                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/20">
+                                                     <CheckCircle size={40} className="text-white" />
+                                                  </div>
+                                                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">WA Connected</span>
+                                                  <button onClick={handleLogoutWA} className="text-[8px] font-black text-slate-500 hover:text-red-500 uppercase underline">Logout</button>
+                                               </div>
+                                            ) : whatsappQr ? (
+                                               <div className="p-4 bg-white rounded-[32px] shadow-2xl">
+                                                  <img src={whatsappQr} className="w-40 h-40" alt="WA QR" />
+                                               </div>
+                                            ) : (
+                                               <div className="w-48 h-48 bg-[#020617] border-2 border-white/5 border-dashed rounded-[32px] flex items-center justify-center">
+                                                  <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+                                               </div>
+                                            )}
                                          </div>
-                                         <div>
-                                            <h3 className="text-sm font-black text-white uppercase tracking-tighter">Native WhatsApp Alerts</h3>
-                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Receive AI detections directly on WhatsApp</p>
+                                         <div className="flex-1 text-center md:text-left">
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">Direct WhatsApp Login</h3>
+                                            <p className="text-[11px] text-slate-500 font-bold uppercase leading-relaxed max-w-sm mb-6">Scan this QR code with your phone (Linked Devices) to send AI alerts directly from your WhatsApp. No API keys required.</p>
+                                            <div className="flex items-center justify-center md:justify-start gap-4">
+                                               <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${whatsappStatus === 'Connected' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                  Status: {whatsappStatus}
+                                               </div>
+                                            </div>
                                          </div>
                                       </div>
-                                      <button 
-                                        onClick={() => setWhatsappEnabled(!whatsappEnabled)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-all ${whatsappEnabled ? 'bg-emerald-600' : 'bg-slate-800'}`}
-                                      >
-                                         <div className={`w-4 h-4 bg-white rounded-full transition-all ${whatsappEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                      </button>
                                    </div>
 
-                                   {whatsappEnabled && (
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-emerald-600/5 border border-emerald-600/20 rounded-3xl animate-in slide-in-from-top-4">
-                                         <div className="space-y-3">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">WhatsApp Provider</span>
-                                            <select 
-                                              value={whatsappProvider} 
-                                              onChange={e => setWhatsappProvider(e.target.value)} 
-                                              className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm appearance-none outline-none"
-                                            >
-                                               <option value="callmebot">CallMeBot (Free)</option>
-                                               <option value="ultramsg">UltraMsg (Enterprise)</option>
-                                            </select>
-                                         </div>
-                                         <div className="space-y-3">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">WhatsApp Number</span>
-                                            <input value={whatsappNumber} onChange={e => setWhatsappNumber(e.target.value)} placeholder="+919876543210" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm outline-none" />
-                                         </div>
-                                         <div className="md:col-span-2 space-y-3">
-                                            <div className="flex items-center justify-between ml-2">
-                                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">API Key / Token</span>
-                                               <a href={whatsappProvider === 'callmebot' ? "https://www.callmebot.com/blog/free-api-whatsapp-messages/" : "https://ultramsg.com/"} target="_blank" rel="noreferrer" className="text-[8px] text-blue-500 underline font-black uppercase tracking-widest">Get API Key</a>
+                                   {/* --- TELEGRAM ALERTS --- */}
+                                   <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6">
+                                      <div className="flex items-center justify-between">
+                                         <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${telegramEnabled ? 'bg-blue-400/10 text-blue-400' : 'bg-slate-800/10 text-slate-500'}`}>
+                                               <Send size={20} />
                                             </div>
-                                            <input 
-                                              type="password" 
-                                              value={whatsappApiKey} 
-                                              onChange={e => setWhatsappApiKey(e.target.value)} 
-                                              placeholder={whatsappProvider === 'ultramsg' ? "instanceID/token" : "123456"} 
-                                              className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-emerald-600 transition-all text-sm outline-none" 
-                                            />
+                                            <div>
+                                               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Telegram Alerts</h3>
+                                               <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Free & Instant Cloud Backup Notifications</p>
+                                            </div>
                                          </div>
+                                         <button 
+                                           onClick={() => setTelegramEnabled(!telegramEnabled)}
+                                           className={`w-12 h-6 rounded-full p-1 transition-all ${telegramEnabled ? 'bg-blue-500' : 'bg-slate-800'}`}
+                                         >
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-all ${telegramEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                         </button>
                                       </div>
-                                   )}
 
+                                      {telegramEnabled && (
+                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-blue-500/5 border border-blue-500/20 rounded-3xl animate-in slide-in-from-top-4">
+                                            <div className="space-y-3">
+                                               <div className="flex items-center justify-between ml-2">
+                                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bot Token</span>
+                                                  <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-[8px] text-blue-400 underline font-black uppercase tracking-widest">Create Bot</a>
+                                               </div>
+                                               <input type="password" value={telegramToken} onChange={e => setTelegramToken(e.target.value)} placeholder="123456789:ABCDE..." className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-500 transition-all text-sm outline-none" />
+                                            </div>
+                                            <div className="space-y-3">
+                                               <div className="flex items-center justify-between ml-2">
+                                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Chat ID</span>
+                                                  <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-[8px] text-blue-400 underline font-black uppercase tracking-widest">Get ID</a>
+                                               </div>
+                                               <input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="987654321" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-3 px-5 text-white font-bold focus:border-blue-500 transition-all text-sm outline-none" />
+                                            </div>
+                                         </div>
+                                      )}
+                                   </div>
+
+                                   {/* --- LEGACY WEBHOOKS --- */}
                                    <div className="space-y-3">
-                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Custom Webhook URL (Advanced)</label>
+                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Legacy Webhook URL</label>
                                      <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all shadow-inner">
                                        <Bell className="text-blue-500 flex-shrink-0" size={18} />
                                        <input 
@@ -1200,6 +1252,7 @@ function App() {
                                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
                                        />
                                      </div>
+                                   </div>                 </div>
                                    </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

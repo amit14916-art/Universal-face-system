@@ -59,6 +59,9 @@ async def migrate():
         await run_step("ALTER TABLE gym_owners ADD COLUMN whatsapp_number VARCHAR", "whatsapp_number in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN whatsapp_api_key VARCHAR", "whatsapp_api_key in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN whatsapp_provider VARCHAR DEFAULT 'callmebot'", "whatsapp_provider in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN telegram_enabled BOOLEAN DEFAULT FALSE", "telegram_enabled in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN telegram_token VARCHAR", "telegram_token in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN telegram_chat_id VARCHAR", "telegram_chat_id in gym_owners")
 
     print("Migration complete.")
     await engine.dispose()

@@ -281,18 +281,16 @@ async def trigger_notification(owner_id, user, event_type, session):
                     except Exception as e:
                         print(f"Webhook Error: {e}")
 
-                # 2. Native WhatsApp Support
+                # 2. Native WhatsApp Support (CallMeBot / UltraMsg)
                 if getattr(owner, 'whatsapp_enabled', False) and owner.whatsapp_number and owner.whatsapp_api_key:
                     provider = getattr(owner, 'whatsapp_provider', 'callmebot').lower()
                     try:
                         if provider == 'callmebot':
                             import urllib.parse
                             safe_msg = urllib.parse.quote(message)
-                            # CallMeBot URL: https://api.callmebot.com/whatsapp.php?phone=[phone]&text=[text]&apikey=[apikey]
                             url = f"https://api.callmebot.com/whatsapp.php?phone={owner.whatsapp_number}&text={safe_msg}&apikey={owner.whatsapp_api_key}"
                             await client.get(url, timeout=5)
                         elif provider == 'ultramsg':
-                            # UltraMsg requires instance ID and token. Assuming API Key format: instanceID/token
                             if "/" in owner.whatsapp_api_key:
                                 instance_id, token = owner.whatsapp_api_key.split("/", 1)
                                 url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
@@ -300,6 +298,21 @@ async def trigger_notification(owner_id, user, event_type, session):
                                 await client.post(url, data=payload, timeout=5)
                     except Exception as ws_err:
                         print(f"WhatsApp Provider Error ({provider}): {ws_err}")
+
+                # 3. Local WhatsApp Gateway (Baileys QR)
+                try:
+                    # We check if a local WA session is active (Simplified: just try sending)
+                    # Note: We use 127.0.0.1 because it's in the same container
+                    await client.post("http://127.0.0.1:9000/send", json={"number": owner.mobile, "message": message}, timeout=5)
+                except: pass
+
+                # 4. Telegram Alerts
+                if getattr(owner, 'telegram_enabled', False) and owner.telegram_token and owner.telegram_chat_id:
+                    try:
+                        tg_url = f"https://api.telegram.org/bot{owner.telegram_token}/sendMessage"
+                        await client.post(tg_url, json={"chat_id": owner.telegram_chat_id, "text": message, "parse_mode": "Markdown"}, timeout=5)
+                    except Exception as tg_err:
+                        print(f"Telegram Error: {tg_err}")
         except Exception as e:
             print(f"Notification System Error: {e}")
     

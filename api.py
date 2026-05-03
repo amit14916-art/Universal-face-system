@@ -78,6 +78,9 @@ class NotificationSettingsRequest(BaseModel):
     whatsapp_number: str = ""
     whatsapp_api_key: str = ""
     whatsapp_provider: str = "callmebot"
+    telegram_enabled: bool = False
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
     notify_on_entry: bool
     notify_on_expiry: bool
 
@@ -326,6 +329,34 @@ async def get_node_settings(owner_id: int):
                 "onvif_pass": getattr(node, 'onvif_pass', '')
             }
     return {"message": "No active node found"}
+
+# Proxy for WhatsApp Gateway QR
+@app.get("/api/whatsapp/qr")
+async def get_whatsapp_qr():
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.get("http://localhost:9000/qr")
+            return res.json()
+        except:
+            return {"qr": None, "status": "Offline"}
+
+@app.get("/api/whatsapp/status")
+async def get_whatsapp_status():
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.get("http://localhost:9000/status")
+            return res.json()
+        except:
+            return {"status": "Offline"}
+
+@app.post("/api/whatsapp/logout")
+async def logout_whatsapp():
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.post("http://localhost:9000/logout")
+            return res.json()
+        except:
+            return {"success": False}
 
 @app.post("/api/auth/signup")
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -599,6 +630,9 @@ async def update_notification_settings(request: NotificationSettingsRequest, db:
     owner.whatsapp_number = request.whatsapp_number
     owner.whatsapp_api_key = request.whatsapp_api_key
     owner.whatsapp_provider = request.whatsapp_provider
+    owner.telegram_enabled = request.telegram_enabled
+    owner.telegram_token = request.telegram_token
+    owner.telegram_chat_id = request.telegram_chat_id
     owner.notify_on_entry = request.notify_on_entry
     owner.notify_on_expiry = request.notify_on_expiry
     
@@ -617,6 +651,9 @@ async def get_notification_settings(owner_id: int, db: AsyncSession = Depends(ge
         "whatsapp_number": owner.whatsapp_number,
         "whatsapp_api_key": owner.whatsapp_api_key,
         "whatsapp_provider": owner.whatsapp_provider,
+        "telegram_enabled": owner.telegram_enabled,
+        "telegram_token": owner.telegram_token,
+        "telegram_chat_id": owner.telegram_chat_id,
         "notify_on_entry": owner.notify_on_entry,
         "notify_on_expiry": owner.notify_on_expiry
     }
