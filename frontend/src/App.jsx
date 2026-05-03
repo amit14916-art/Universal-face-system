@@ -221,6 +221,8 @@ function App() {
       if (browserStream) browserStream.getTracks().forEach(t => t.stop());
       clearInterval(interval);
     };
+  }, [isWebcamNodeActive]);
+
   // --- WHATSAPP QR POLLING ---
   useEffect(() => {
     let qrInterval;
@@ -1164,7 +1166,9 @@ function App() {
                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-8 text-left shadow-2xl">
                                 <div className="border-b border-white/5 pb-4">
                                   <h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Notifications</h3>
-                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Tel                                 <div className="space-y-8 pt-2">
+                                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Connect WhatsApp/Telegram via Native Bridge</p>
+                                 </div>
+                                 <div className="space-y-8 pt-2">
                                    {/* --- DIRECT WHATSAPP QR SCANNER --- */}
                                    <div className="glass-panel p-8 bg-white/[0.02] border-2 border-white/10 rounded-[32px] overflow-hidden relative">
                                       <div className="flex flex-col md:flex-row items-center gap-10">
@@ -1252,8 +1256,9 @@ function App() {
                                          className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
                                        />
                                      </div>
-                                   </div>                 </div>
                                    </div>
+                                 </div>
+                              </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <button 
