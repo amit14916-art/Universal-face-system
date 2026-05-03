@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Shield, LayoutList, User, ShieldOff, Trash2, X, Activity, 
   Users, Clock, Edit2, Settings, History, MapPin, Download,
-  ChevronRight, Bell, Search, Info, Camera, LogIn, Lock, Mail, ArrowRight, LogOut, CheckCircle
+  ChevronRight, Bell, Search, Info, Camera, LogIn, Lock, Mail, ArrowRight, LogOut, CheckCircle, AlertTriangle
 } from 'lucide-react';
 import './index.css';
 import StreamGrid from './components/StreamGrid';
