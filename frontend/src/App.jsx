@@ -573,9 +573,12 @@ function App() {
       <div className={`max-w-[1400px] mx-auto flex flex-col relative z-20 transition-opacity duration-300 ${dashboardReady ? 'opacity-100' : 'opacity-60'}`}>
         <nav className="flex items-center justify-between py-5 px-6 border-b border-white/5 bg-[#020617]/50 backdrop-blur-3xl sticky top-0 z-50">
           <div className="flex items-center gap-4 shrink-0"><div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30"><Shield size={18} className="text-white" /></div><h1 className="text-base font-black heading-font text-white leading-none uppercase tracking-tight">{currentGymName || 'Sentinel_AI'}</h1></div>
-          <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
+          <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0 shadow-inner">
             {['dashboard', 'logs', 'registry', 'settings'].map(tab => (
-              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>{tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}</button>
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-7 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all relative ${activeTab === tab ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' : 'text-slate-500 hover:text-white'}`}>
+                {tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}
+                {activeTab === tab && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_10px_white]" />}
+              </button>
             ))}
           </div>
           <div className="flex items-center gap-3">
@@ -598,7 +601,12 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
              <div className="lg:col-span-12 flex flex-col gap-6">
                 <div className="glass-panel bg-white/[0.01] border-white/5 rounded-[40px] flex flex-col min-h-[500px] shadow-2xl overflow-hidden">
-                    <div className="p-8 pb-4 flex flex-wrap justify-between items-center gap-6 text-left"><h3 className="heading-font font-black text-[14px] text-slate-500 tracking-wider uppercase pl-2">System_Output</h3></div>
+                    <div className="p-8 pb-4 flex flex-wrap justify-between items-center gap-6 text-left border-b border-white/5 bg-white/[0.01]">
+                        <h3 className="heading-font font-black text-[14px] text-slate-500 tracking-widest uppercase flex items-center gap-3">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]" />
+                            [ SYSTEM_PROTOCOL_OUTPUT ]
+                        </h3>
+                    </div>
                     <div className="flex-1 overflow-y-auto custom-scroll p-4">
                         {activeTab === 'dashboard' ? (
                           <div className="space-y-8 p-4 text-left">
@@ -667,11 +675,12 @@ function App() {
                                 <div className="border-b border-white/5 pb-4 flex justify-between items-center">
                                    <div>
                                       <h3 className="text-2xl font-black text-white uppercase tracking-tight">Camera Onboarding</h3>
-                                      <p className="text-[12px] text-slate-500 font-bold uppercase tracking-wider mt-1">Connect your gym surveillance system</p>
+                                      <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mt-1">Connect your gym surveillance system</p>
                                    </div>
-                                   <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/10">
-                                      <button onClick={() => setOnboardingMode('simple')} className={`px-8 py-3 rounded-xl text-[12px] font-black uppercase transition-all ${onboardingMode === 'simple' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Simple</button>
-                                      <button onClick={() => setOnboardingMode('advanced')} className={`px-8 py-3 rounded-xl text-[12px] font-black uppercase transition-all ${onboardingMode === 'advanced' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Advanced</button>
+                                   <div className="flex gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 shadow-inner">
+                                      <button onClick={() => setOnboardingMode('simple')} className={`px-10 py-3.5 rounded-xl text-[12px] font-black uppercase transition-all flex items-center gap-2 ${onboardingMode === 'simple' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Simple</button>
+                                      <div className="w-[1px] h-8 bg-white/10 self-center" />
+                                      <button onClick={() => setOnboardingMode('advanced')} className={`px-10 py-3.5 rounded-xl text-[12px] font-black uppercase transition-all flex items-center gap-2 ${onboardingMode === 'advanced' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>Advanced</button>
                                    </div>
                                 </div>
 
