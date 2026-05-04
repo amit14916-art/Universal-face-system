@@ -784,46 +784,6 @@ function App() {
                                    ))}
                                  </div>
                               </div>
-                              <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-8 shadow-2xl">
-                                 <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Alerts</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-channel delivery system</p></div>
-                                 <div className="space-y-6">
-                                    <div className="glass-panel p-8 bg-white/[0.01] rounded-[32px] space-y-6">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${gmailAlertEnabled ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-slate-500'}`}><Mail size={20} /></div>
-                                            <div>
-                                              <h3 className="text-sm font-black text-white uppercase">Gmail Alerts</h3>
-                                              <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Instant face detection alerts</p>
-                                            </div>
-                                          </div>
-                                          <button onClick={() => { setGmailAlertEnabled(!gmailAlertEnabled); setTimeout(saveNotificationSettings, 100); }} className={`w-12 h-6 rounded-full p-1 transition-all ${gmailAlertEnabled ? 'bg-red-500' : 'bg-slate-800'}`}>
-                                            <div className={`w-4 h-4 bg-white rounded-full transition-all ${gmailAlertEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                          </button>
-                                        </div>
-                                        {gmailAlertEnabled && (
-                                          <div className="animate-in slide-in-from-top-4">
-                                            <div className="relative">
-                                              <input 
-                                                type="email" 
-                                                value={alertEmail} 
-                                                onChange={e => setAlertEmail(e.target.value)} 
-                                                onBlur={saveNotificationSettings}
-                                                placeholder="Enter owner gmail for alerts" 
-                                                className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-red-600 outline-none pr-12" 
-                                              />
-                                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700">@</div>
-                                            </div>
-                                            <p className="text-[7px] text-slate-600 font-black uppercase tracking-widest mt-3 ml-2">Saves automatically on change</p>
-                                          </div>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <button onClick={() => setNotifyOnEntry(!notifyOnEntry)} className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}><div><span className="text-[8px] font-black uppercase block opacity-60">Every Scan</span><span className="text-xs font-black">Notify on Entry</span></div><CheckCircle size={24} /></button>
-                                      <button onClick={() => setNotifyOnExpiry(!notifyOnExpiry)} className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all ${notifyOnExpiry ? 'bg-red-500/10 border-red-500 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}><div><span className="text-[8px] font-black uppercase block opacity-60">Critical</span><span className="text-xs font-black">Notify Expiries</span></div><AlertTriangle size={24} /></button>
-                                    </div>
-                                    <button onClick={saveNotificationSettings} className="w-full md:w-auto px-10 py-5 bg-emerald-600 text-white rounded-[20px] font-black text-sm flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-xl disabled:opacity-50" disabled={isSavingSettings}>{isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'} <CheckCircle size={18} /></button>
-                                 </div>
-                              </div>
                           </div>
                         ) : (
                           <div className="divide-y divide-white/5 min-h-[200px]">
