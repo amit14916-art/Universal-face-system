@@ -131,7 +131,15 @@ def extract_face(frame: np.ndarray, enforce_liveness=False):
     feature = face_recognizer.feature(aligned_face)
     return [{"embedding": feature[0]}]
 
-async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarray, location: str = "Unknown", owner_id: int = None):
+async def process_tracker_crop(
+    crop_img: np.ndarray,
+    bbox,
+    full_frame: np.ndarray | None = None,
+    location: str = "Unknown",
+    owner_id: int = None,
+    *,
+    frame_shape: tuple[int, int] | None = None,
+):
     """Processes tracked face using Cloud-Native pgvector Search with Enhanced Re-ID and Location tracking."""
     global last_visitor_created_at
     
@@ -140,7 +148,12 @@ async def process_tracker_crop(crop_img: np.ndarray, bbox, full_frame: np.ndarra
 
     # 0. Early Quality Filtering (Before doing expensive math)
     _, _, box_w, box_h = bbox
-    fh, fw = full_frame.shape[:2]
+    if frame_shape is not None:
+        fh, fw = int(frame_shape[0]), int(frame_shape[1])
+    elif full_frame is not None:
+        fh, fw = full_frame.shape[:2]
+    else:
+        return None, "System Error"
     
     # Reject tiny faces (less than 5% of screen width)
     if box_w < fw * 0.05 or box_h < fh * 0.05: 

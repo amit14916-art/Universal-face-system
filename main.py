@@ -6,6 +6,9 @@ import threading
 import queue
 import time
 import os
+import base64
+import concurrent.futures
+from datetime import datetime
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
@@ -23,8 +26,26 @@ import face_service
 
 try:
     from deep_sort_realtime.deepsort_tracker import DeepSort
+    DEEPSORT_AVAILABLE = True
 except ImportError:
+    DeepSort = None  # type: ignore[misc, assignment]
+    DEEPSORT_AVAILABLE = False
     print("WARNING: DeepSort not found. Make sure you run via the Python 3.11 Virtual Environment (setup_enterprise.ps1)")
+
+# --- Tunables (env overrides for deployment) ---
+JOB_QUEUE_MAXSIZE = int(os.environ.get("SENTINEL_JOB_QUEUE_MAX", "100"))
+STREAM_CONNECT_RETRIES = int(os.environ.get("SENTINEL_STREAM_RETRIES", "10"))
+STREAM_RETRY_DELAY_SEC = float(os.environ.get("SENTINEL_STREAM_RETRY_DELAY", "3"))
+FAILED_READ_THRESHOLD = int(os.environ.get("SENTINEL_FAILED_READS", "50"))
+READ_FAIL_SLEEP_SEC = float(os.environ.get("SENTINEL_READ_FAIL_SLEEP", "0.1"))
+RECONNECT_SLEEP_SEC = float(os.environ.get("SENTINEL_RECONNECT_SLEEP", "2"))
+ASYNC_OP_TIMEOUT_SEC = float(os.environ.get("SENTINEL_ASYNC_TIMEOUT", "120"))
+NODE_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_NODE_JOIN_TIMEOUT", "8"))
+WORKER_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_WORKER_JOIN_TIMEOUT", "30"))
+LOOP_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_LOOP_JOIN_TIMEOUT", "5"))
+DETECT_MAX_WIDTH = int(os.environ.get("SENTINEL_DETECT_MAX_WIDTH", "800"))
+DETECT_SCALE_WIDTH = float(os.environ.get("SENTINEL_DETECT_SCALE_WIDTH", "640"))
+SHOW_LOCAL_UI = os.environ.get("SENTINEL_HEADLESS", "0").lower() not in ("1", "true", "yes")
 
 # --- Background asyncio event loop ---
 _loop = asyncio.new_event_loop()
@@ -35,12 +56,12 @@ def _start_loop(loop):
 
 _loop_thread = None
 
-def run_async(coro):
+def run_async(coro, timeout=ASYNC_OP_TIMEOUT_SEC):
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
-    return future.result()
+    return future.result(timeout=timeout)
 
 # --- Multi-Camera Sentinel Architecture ---
-shared_job_queue = queue.Queue(maxsize=100) # Increased to handle multiple faces simultaneously
+shared_job_queue = queue.Queue(maxsize=JOB_QUEUE_MAXSIZE)
 track_identities = {} # Global map: track_id -> "Name"
 _identity_lock = threading.Lock()
 global_nodes = {} # Global registry: node_name -> node_instance
@@ -61,7 +82,11 @@ class SentinelNode:
         self.onvif_pass = ""
         self.running = False
         self.status = "Initializing"
-        self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
+        self.tracker = (
+            DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
+            if DEEPSORT_AVAILABLE
+            else None
+        )
         self.cap = None
         self.last_frame = None # Store the latest processed frame for streaming
         self.fps = 0
@@ -73,47 +98,67 @@ class SentinelNode:
         self.thread.start()
 
     def stop(self):
+        """Signal the capture thread to exit; release happens in _run to avoid races."""
         self.running = False
         self.status = "Offline"
-        if self.cap:
-            self.cap.release()
 
     def _run(self):
+        try:
+            self._run_impl()
+        except Exception as e:
+            log_print(f"[{self.name}] Fatal error in capture loop: {e}")
+            self.status = "Failed"
+            self.running = False
+        finally:
+            if self.cap is not None:
+                self.cap.release()
+                self.cap = None
+
+    def _run_impl(self):
         source = self.source_id
         if self.use_p2p and self.p2p_uid:
             source = f"rtsp://{self.p2p_user}:{self.p2p_pass}@{self.p2p_uid}.p2p.cam/live"
-            print(f"INFO: [{self.name}] Connecting via P2P Cloud ID: {self.p2p_uid}", flush=True)
+            log_print(f"INFO: [{self.name}] Connecting via P2P Cloud ID: {self.p2p_uid}")
         else:
-            print(f"INFO: [{self.name}] Initializing Stream: {source}", flush=True)
+            log_print(f"INFO: [{self.name}] Initializing Stream: {source}")
         
         # Retry loop for robust connection (especially for IP cameras)
-        max_retries = 10 
+        max_retries = STREAM_CONNECT_RETRIES
         connected = False
         self.status = "Connecting"
         for i in range(max_retries):
-            print(f"INFO: [{self.name}] Connection attempt {i+1}/{max_retries}...", flush=True)
+            log_print(f"INFO: [{self.name}] Connection attempt {i+1}/{max_retries}...")
+            if self.cap is not None:
+                self.cap.release()
+                self.cap = None
             self.cap = cv2.VideoCapture(source)
             
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if ret:
-                    print(f"SUCCESS: [{self.name}] Stream connected and frame captured.", flush=True)
+                    log_print(f"SUCCESS: [{self.name}] Stream connected and frame captured.")
                     connected = True
                     break
                 else:
-                    print(f"WARNING: [{self.name}] Connected but stream empty. Retrying...", flush=True)
+                    log_print(f"WARNING: [{self.name}] Connected but stream empty. Retrying...")
             
-            print(f"ERROR: [{self.name}] Attempt {i+1} failed. Next retry in 3s...", flush=True)
-            time.sleep(3)
+            log_print(f"ERROR: [{self.name}] Attempt {i+1} failed. Next retry in {STREAM_RETRY_DELAY_SEC}s...")
+            time.sleep(STREAM_RETRY_DELAY_SEC)
 
         if not connected:
-            print(f"FATAL: [{self.name}] Could not open stream {source}. Check URL/Network.", flush=True)
+            log_print(f"FATAL: [{self.name}] Could not open stream {source}. Check URL/Network.")
+            self.status = "Failed"
+            self.running = False
+            return
+
+        if self.tracker is None:
+            log_print(f"FATAL: [{self.name}] DeepSort is not available; cannot track faces.")
             self.status = "Failed"
             self.running = False
             return
         
         self.status = "Online"
-        print(f"INFO: [{self.name}] Stream Active. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}", flush=True)
+        log_print(f"INFO: [{self.name}] Stream Active. Resolution: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
 
         # Initialize local detector for thread safety
         detector_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
@@ -129,14 +174,15 @@ class SentinelNode:
             ret, frame = self.cap.read()
             if not ret: 
                 failed_frames += 1
-                if failed_frames > 50: # ~5 seconds of dropped frames
+                if failed_frames > FAILED_READ_THRESHOLD:
                     log_print(f"[{self.name}] Connection lost. Attempting auto-reconnect...")
                     self.cap.release()
-                    time.sleep(2)
+                    self.cap = None
+                    time.sleep(RECONNECT_SLEEP_SEC)
                     self.cap = cv2.VideoCapture(source)
                     failed_frames = 0
                 else:
-                    time.sleep(0.1)
+                    time.sleep(READ_FAIL_SLEEP_SEC)
                 continue
             
             failed_frames = 0
@@ -154,8 +200,8 @@ class SentinelNode:
             # Sub-sampling for faster detection on high-res streams
             detect_frame = frame
             scale = 1.0
-            if w > 800:
-                scale = 640.0 / w
+            if w > DETECT_MAX_WIDTH:
+                scale = DETECT_SCALE_WIDTH / w
                 detect_frame = cv2.resize(frame, (0,0), fx=scale, fy=scale)
             
             dh, dw = detect_frame.shape[:2]
@@ -199,7 +245,9 @@ class SentinelNode:
                     if crop.size > 0:
                         with _identity_lock:
                             track_identities[node_track_id] = "Detecting..."
-                        shared_job_queue.put((node_track_id, crop, (ml, mt, mr-ml, mb-mt), frame.copy(), self.name, self.owner_id))
+                        shared_job_queue.put(
+                            (node_track_id, crop, (ml, mt, mr - ml, mb - mt), (h, w), self.name, self.owner_id)
+                        )
                 
                 # Visuals
                 color = (0, 60, 255) if "Visitor" in name or "BLACKLIST" in name else (0, 220, 80)
@@ -227,14 +275,18 @@ class SentinelNode:
                 frame_count = 0
                 start_time = time.time()
 
-        if self.cap:
-            self.cap.release()
-
 async def process_single_crop(crop_img, location, owner_id, db):
     """Bridge for the Edge Agent to process individual face crops."""
     try:
-        # We reuse the existing face_service logic
-        face_id, name = await face_service.process_tracker_crop(crop_img, [0,0,crop_img.shape[1],crop_img.shape[0]], crop_img, location, owner_id)
+        ch, cw = crop_img.shape[:2]
+        face_id, name = await face_service.process_tracker_crop(
+            crop_img,
+            [0, 0, cw, ch],
+            None,
+            location,
+            owner_id,
+            frame_shape=(ch, cw),
+        )
         return face_id, name, 0.99
     except Exception as e:
         log_print(f"Edge Crop Error: {e}")
@@ -257,15 +309,18 @@ def processing_worker():
     while True:
         job = shared_job_queue.get()
         if job is None: break
-        track_id, crop_img, bbox, full_frame, location, owner_id = job
+        track_id, crop_img, bbox, frame_shape, location, owner_id = job
         try:
-            face_id, name = run_async(face_service.process_tracker_crop(crop_img, bbox, full_frame, location, owner_id))
+            face_id, name = run_async(
+                face_service.process_tracker_crop(
+                    crop_img, bbox, None, location, owner_id, frame_shape=frame_shape
+                )
+            )
             with _identity_lock:
                 track_identities[track_id] = name
             
             # Store live crop for dashboard autocapture
             if name not in ["Scanning...", "Wait...", "Blurry...", "Aligning...", "Too far", "Error"]:
-                import base64
                 _, buffer = cv2.imencode('.jpg', crop_img)
                 b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
                 
@@ -276,7 +331,6 @@ def processing_worker():
                     
                     # Prevent spamming the same track ID
                     if not any(d['id'] == track_id for d in node.live_detections):
-                        from datetime import datetime
                         node.live_detections.insert(0, {
                             "id": track_id, 
                             "name": name, 
@@ -285,6 +339,10 @@ def processing_worker():
                         })
                         node.live_detections = node.live_detections[:5] # Keep last 5
                         
+        except concurrent.futures.TimeoutError:
+            log_print(f"Worker async timeout for track {track_id}")
+            with _identity_lock:
+                track_identities[track_id] = "Scanning..."
         except Exception as e:
             log_print(f"Worker Error: {e}")
             with _identity_lock:
@@ -309,6 +367,10 @@ def start_background_workers():
 
 # --- Entry Point ---
 if __name__ == "__main__":
+    if not DEEPSORT_AVAILABLE:
+        log_print("FATAL: DeepSort is required to run the Sentinel engine. Install dependencies and retry.")
+        sys.exit(1)
+
     start_background_workers()
     run_async(init_db())
     run_async(face_service.load_faiss_db())
@@ -326,20 +388,30 @@ if __name__ == "__main__":
     
     try:
         while any(n.running for n in global_nodes.values()):
-            # Display local OpenCV windows for each active node
-            for name, node in global_nodes.items():
-                if node.last_frame is not None:
-                    cv2.imshow(f"Sentinel AI: {name}", node.last_frame)
-                    
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            if SHOW_LOCAL_UI:
+                for name, node in global_nodes.items():
+                    if node.last_frame is not None:
+                        cv2.imshow(f"Sentinel AI: {name}", node.last_frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
             time.sleep(0.03)
     except KeyboardInterrupt:
         pass
     finally:
-        cv2.destroyAllWindows()
-        for n in global_nodes.values(): n.stop()
+        if SHOW_LOCAL_UI:
+            cv2.destroyAllWindows()
+        for n in global_nodes.values():
+            n.stop()
+        for n in global_nodes.values():
+            th = getattr(n, "thread", None)
+            if th is not None and th.is_alive():
+                th.join(timeout=NODE_THREAD_JOIN_TIMEOUT)
         for _ in range(NUM_WORKERS):
             shared_job_queue.put(None)
+        for wt in _worker_threads:
+            if wt.is_alive():
+                wt.join(timeout=WORKER_THREAD_JOIN_TIMEOUT)
         _loop.call_soon_threadsafe(_loop.stop)
+        if _loop_thread is not None and _loop_thread.is_alive():
+            _loop_thread.join(timeout=LOOP_THREAD_JOIN_TIMEOUT)
 
