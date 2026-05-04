@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cpu, Zap, Database, Shield } from 'lucide-react';
 
-const TelemetryPanel = ({ telemetry }) => {
+const TelemetryPanel = ({ telemetry, apiLatencyMs }) => {
   const nodes = Object.keys(telemetry || {});
   
   // Aggregate stats
@@ -10,6 +10,8 @@ const TelemetryPanel = ({ telemetry }) => {
     ? Math.round(nodes.reduce((acc, name) => acc + telemetry[name].fps, 0) / nodes.length) 
     : 0;
 
+  const latencyLabel = apiLatencyMs != null ? `${apiLatencyMs}ms` : '—';
+
   return (
     <div className="glass-panel p-10 flex flex-col gap-8 rounded-[40px] bg-white/[0.01] border-white/5 shadow-2xl">
       <h4 className="heading-font font-black text-[10px] text-slate-600 tracking-[0.4em] uppercase border-b border-white/5 pb-4">Engine_Telemetry</h4>
@@ -17,7 +19,7 @@ const TelemetryPanel = ({ telemetry }) => {
         {[
           { label: 'Neural Throughput', value: `${avgFps} FPS`, status: avgFps > 20 ? 'High' : 'Normal', icon: Zap, color: 'text-yellow-500' },
           { label: 'Track Density', value: totalTracks, status: totalTracks > 0 ? 'Active' : 'Idle', icon: Cpu, color: 'text-blue-500' },
-          { label: 'Cloud Latency', value: '14ms', status: 'Secure', icon: Shield, color: 'text-emerald-500' }
+          { label: 'API Latency', value: latencyLabel, status: apiLatencyMs != null && apiLatencyMs < 500 ? 'OK' : 'Check', icon: Shield, color: 'text-emerald-500' }
         ].map((t, idx) => (
           <div key={idx} className="bg-white/5 p-6 border-white/5 rounded-[28px] border flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-all">
              <div className="text-[9px] font-black uppercase tracking-widest text-slate-600 flex justify-between items-center">

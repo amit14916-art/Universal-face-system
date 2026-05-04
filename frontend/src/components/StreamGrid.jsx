@@ -1,10 +1,11 @@
-import React from 'react';
-import { Camera, Activity, Maximize2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Camera, Activity, Maximize2, WifiOff } from 'lucide-react';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
-const StreamGrid = ({ telemetry, onSnapshot }) => {
+const StreamGrid = ({ telemetry, onSnapshot, savedCameraCount = 0 }) => {
   const nodes = Object.keys(telemetry || {});
+  const [streamBroken, setStreamBroken] = useState({});
 
   const handleSnapshot = (e, nodeName) => {
     e.preventDefault();
@@ -20,9 +21,16 @@ const StreamGrid = ({ telemetry, onSnapshot }) => {
 
   if (nodes.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-slate-700 gap-4">
-        <Camera size={48} className="opacity-20" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em]">Waiting for node handshakes...</p>
+      <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 px-6 text-center min-h-[220px]">
+        <Camera size={48} className="opacity-20 text-slate-400" />
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] max-w-md">
+          No live engine nodes yet
+        </p>
+        <p className="text-[11px] text-slate-600 font-bold leading-relaxed max-w-md">
+          {savedCameraCount > 0
+            ? `You have ${savedCameraCount} camera(s) saved. If streams stay blank, the server may still be connecting to RTSP or the engine may need a restart.`
+            : 'Add a camera under Nodes with a valid RTSP URL so the engine can attach and stream here.'}
+        </p>
       </div>
     );
   }
@@ -34,10 +42,10 @@ const StreamGrid = ({ telemetry, onSnapshot }) => {
         const isOnline = node.status === 'Online';
         const isConnecting = node.status === 'Connecting';
         const isFailed = node.status === 'Failed';
+        const broken = streamBroken[nodeName];
 
         return (
           <div key={nodeName} className="glass-panel overflow-hidden border-white/5 bg-black/40 group relative aspect-video">
-            {/* Header Overlay */}
             <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
                <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                   <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : isConnecting ? 'bg-amber-500 animate-bounce' : 'bg-red-500'}`} />
@@ -52,30 +60,33 @@ const StreamGrid = ({ telemetry, onSnapshot }) => {
                )}
             </div>
 
-            {/* Action Overlay */}
             <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-               {isOnline && onSnapshot && (
-                 <button onClick={(e) => handleSnapshot(e, nodeName)} className="p-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-500/50 text-white transition-all shadow-lg active:scale-95" title="Capture Snapshot">
+               {isOnline && onSnapshot && !broken && (
+                 <button type="button" onClick={(e) => handleSnapshot(e, nodeName)} className="p-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-500/50 text-white transition-all shadow-lg active:scale-95" title="Capture Snapshot">
                     <Camera size={14} />
                  </button>
                )}
-               <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all">
+               <button type="button" className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all">
                   <Maximize2 size={14} />
                </button>
             </div>
 
-            {/* Actual Stream or Status Message */}
-            {isOnline ? (
+            {isOnline && !broken ? (
               <img 
                 id={`stream-${nodeName}`}
                 crossOrigin="anonymous"
                 src={`${API_BASE}/api/stream/${nodeName}`} 
                 alt={nodeName}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                onError={(e) => {
-                   e.target.src = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop';
-                }}
+                onError={() => setStreamBroken((prev) => ({ ...prev, [nodeName]: true }))}
+                onLoad={() => setStreamBroken((prev) => ({ ...prev, [nodeName]: false }))}
               />
+            ) : isOnline && broken ? (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950/80 gap-3 px-6 text-center">
+                <WifiOff size={36} className="text-amber-500/60" />
+                <p className="text-[9px] font-black uppercase tracking-widest text-amber-400/90">Stream unavailable</p>
+                <p className="text-[8px] text-slate-500 max-w-[220px]">MJPEG failed to load. Check node status and network.</p>
+              </div>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/50 gap-3">
                 {isConnecting ? (
@@ -93,8 +104,7 @@ const StreamGrid = ({ telemetry, onSnapshot }) => {
               </div>
             )}
 
-            {/* Footer Stats */}
-            {isOnline && (
+            {isOnline && !broken && (
               <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
                  <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 flex items-center gap-4">
                     <div className="flex items-center gap-2">

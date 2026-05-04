@@ -4,13 +4,15 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import uvicorn
 import asyncio
 import time
+
+_APP_START_MONOTONIC: float | None = None
 
 from database import AsyncSessionLocal, init_db
 import logging
@@ -91,6 +93,9 @@ class SubscriptionRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _APP_START_MONOTONIC
+    _APP_START_MONOTONIC = time.monotonic()
+
     # Ensure static directories exist to prevent deployment crashes
     os.makedirs("static/faces", exist_ok=True)
     os.makedirs("frontend/dist/assets", exist_ok=True)
@@ -445,10 +450,14 @@ async def export_attendance(owner_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/users")
 async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime
+    now = datetime.now()
     result = await db.execute(select(RegisteredFace).where(RegisteredFace.owner_id == owner_id))
     users = result.scalars().all()
-    return [
-        {
+    out = []
+    for u in users:
+        is_expired = u.subscription_expiry is not None and u.subscription_expiry < now
+        out.append({
             "id": u.id,
             "owner_id": u.owner_id,
             "name": u.name,
@@ -459,9 +468,10 @@ async def get_users(owner_id: int, db: AsyncSession = Depends(get_db)):
             "plan_type": u.plan_type,
             "notes": u.notes,
             "created_at": u.created_at,
-            "is_active": u.is_active
-        } for u in users
-    ]
+            "is_active": u.is_active,
+            "subscription_status": "expired" if is_expired else "active",
+        })
+    return out
 
 @app.get("/api/logs")
 async def get_logs(owner_id: int, limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
@@ -496,17 +506,38 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
     from datetime import datetime, timedelta
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = today_start - timedelta(days=7)
+    window_24h = now - timedelta(hours=24)
 
-    # 1. Member Stats
+    uptime_sec = 0
+    if _APP_START_MONOTONIC is not None:
+        uptime_sec = int(time.monotonic() - _APP_START_MONOTONIC)
+
+    # 1. Member Stats (no expiry date = open-ended / active membership)
     total_q = await db.execute(select(func.count(RegisteredFace.id)).where(RegisteredFace.owner_id == owner_id))
-    total_members = total_q.scalar()
+    total_members = total_q.scalar() or 0
 
     active_q = await db.execute(select(func.count(RegisteredFace.id)).where(
         RegisteredFace.owner_id == owner_id,
-        RegisteredFace.subscription_expiry > now
+        RegisteredFace.is_active == True,
+        or_(
+            RegisteredFace.subscription_expiry.is_(None),
+            RegisteredFace.subscription_expiry > now,
+        ),
     ))
-    active_members = active_q.scalar()
+    active_members = active_q.scalar() or 0
+
+    expired_q = await db.execute(select(func.count(RegisteredFace.id)).where(
+        RegisteredFace.owner_id == owner_id,
+        RegisteredFace.subscription_expiry.isnot(None),
+        RegisteredFace.subscription_expiry < now,
+    ))
+    expired_members = expired_q.scalar() or 0
+
+    visits_24h_q = await db.execute(select(func.count(AttendanceLog.id)).where(
+        AttendanceLog.owner_id == owner_id,
+        AttendanceLog.timestamp >= window_24h,
+    ))
+    visits_last_24h = visits_24h_q.scalar() or 0
 
     # 2. Today's Attendance
     today_q = await db.execute(select(func.count(AttendanceLog.id)).where(
@@ -549,8 +580,10 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
         "summary": {
             "total_members": total_members,
             "active_members": active_members,
-            "expired_members": total_members - active_members,
-            "today_attendance": today_count
+            "expired_members": expired_members,
+            "today_attendance": today_count,
+            "visits_last_24h": visits_last_24h,
+            "server_uptime_seconds": uptime_sec,
         },
         "weekly_trend": weekly_trend,
         "peak_hours": peak_hours

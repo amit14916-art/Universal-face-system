@@ -23,6 +23,16 @@ const ScannerIcon = ({ size = 24, className = "" }) => (
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
+function formatUptimeSeconds(sec) {
+  if (sec == null || sec < 0) return '0m';
+  if (sec < 60) return '<1m';
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  return h > 0 ? `${d}d ${h}h` : `${d}d`;
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -81,6 +91,11 @@ function App() {
   const [browserStream, setBrowserStream] = useState(null);
   const browserVideoRef = useRef(null);
   const [lastRecognition, setLastRecognition] = useState(null);
+  const [authError, setAuthError] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [dashboardReady, setDashboardReady] = useState(() => !localStorage.getItem('owner_id'));
+  const [apiLatencyMs, setApiLatencyMs] = useState(null);
 
   useEffect(() => {
     if (localStorage.getItem('owner_id')) {
@@ -88,12 +103,40 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (isLoggedIn && ownerId) {
-      fetchData();
-      const interval = setInterval(fetchData, 3000);
-      return () => clearInterval(interval);
+  const measureLatency = async () => {
+    try {
+      const t0 = performance.now();
+      const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+      const ms = Math.round(performance.now() - t0);
+      setApiLatencyMs(res.ok ? ms : null);
+    } catch {
+      setApiLatencyMs(null);
     }
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn || !ownerId) return undefined;
+    measureLatency();
+    const ping = setInterval(measureLatency, 10000);
+    return () => clearInterval(ping);
+  }, [isLoggedIn, ownerId]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !ownerId) return undefined;
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      setDashboardReady(false);
+      await fetchData();
+      if (!cancelled) setDashboardReady(true);
+    };
+
+    bootstrap();
+    const interval = setInterval(fetchData, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [isLoggedIn, ownerId]);
 
   const fetchData = async () => {
@@ -101,19 +144,37 @@ function App() {
     try {
       const baseUrl = API_BASE;
       const cacheBuster = `?t=${Date.now()}&owner_id=${ownerId}`;
-      const [lRes, uRes, tRes, sRes] = await Promise.all([
+      const reqs = [
         fetch(`${baseUrl}/api/logs${cacheBuster}`),
         fetch(`${baseUrl}/api/users${cacheBuster}`),
         fetch(`${baseUrl}/api/telemetry${cacheBuster}`),
-        fetch(`${baseUrl}/api/stats${cacheBuster}`)
-      ]).catch(() => [null, null, null, null]);
+        fetch(`${baseUrl}/api/stats${cacheBuster}`),
+      ];
+      const settled = await Promise.allSettled(reqs);
 
-      if (lRes && lRes.ok) setLogs(await lRes.json());
-      if (uRes && uRes.ok) setUsers(await uRes.json());
-      if (tRes && tRes.ok) setTelemetry(await tRes.json());
-      if (sRes && sRes.ok) setStats(await sRes.json());
+      const read = async (idx) => {
+        const entry = settled[idx];
+        if (entry.status !== 'fulfilled') return;
+        const res = entry.value;
+        if (!res.ok) return;
+        try {
+          return await res.json();
+        } catch {
+          return null;
+        }
+      };
+
+      const logsData = await read(0);
+      const usersData = await read(1);
+      const telemetryData = await read(2);
+      const statsData = await read(3);
+
+      if (logsData) setLogs(logsData);
+      if (usersData) setUsers(usersData);
+      if (telemetryData) setTelemetry(telemetryData);
+      if (statsData) setStats(statsData);
     } catch (error) {
-      console.error("Sync Error:", error);
+      console.error('Sync Error:', error);
     }
   };
 
@@ -328,39 +389,76 @@ function App() {
     } catch (e) { alert("Registration failed: " + e.message); }
   };
 
-  const handleLogin = async () => {
-    if (!identifier || !password) return alert("Please fill all fields");
+  const detailFromBody = (body) => {
+    const d = body?.detail;
+    if (typeof d === 'string') return d;
+    if (Array.isArray(d) && d[0]?.msg) return d[0].msg;
+    return null;
+  };
+
+  const handleLogin = async (e) => {
+    e?.preventDefault?.();
+    setAuthError('');
+    if (!identifier || !password) {
+      setAuthError('Please enter your identifier and password.');
+      return;
+    }
+    setIsAuthLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setOwnerId(data.owner_id);
+        setOwnerId(String(data.owner_id));
         setCurrentGymName(data.gym_name);
-        localStorage.setItem('owner_id', data.owner_id);
+        localStorage.setItem('owner_id', String(data.owner_id));
         localStorage.setItem('gym_name', data.gym_name);
+        setPassword('');
         setIsLoggedIn(true);
-      } else { alert(data.detail || "Login failed"); }
-    } catch(e) { console.error(e); }
+      } else {
+        setAuthError(detailFromBody(data) || 'Invalid credentials');
+      }
+    } catch {
+      setAuthError('Network error. Check your connection and try again.');
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
-  const handleSignup = async () => {
-    if (!gymName || !email || !mobile || !password || !confirmPassword) return alert("Please fill all fields");
-    if (password !== confirmPassword) return alert("Passwords do not match!");
+  const handleSignup = async (e) => {
+    e?.preventDefault?.();
+    setAuthError('');
+    if (!gymName || !email || !mobile || !password || !confirmPassword) {
+      setAuthError('Please fill all fields.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAuthError('Passwords do not match.');
+      return;
+    }
+    setIsSignupLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gym_name: gymName, email, mobile, password })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        alert("Sign Up successful! Please Login.");
         setAuthMode('login');
-      } else { alert("Sign Up failed"); }
-    } catch(e) { console.error(e); }
+        setAuthError('');
+        setIdentifier(email);
+      } else {
+        setAuthError(detailFromBody(data) || 'Sign up failed');
+      }
+    } catch {
+      setAuthError('Network error. Check your connection and try again.');
+    } finally {
+      setIsSignupLoading(false);
+    }
   };
 
   const handleUpdateProfile = async () => {
@@ -415,41 +513,82 @@ function App() {
         <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center">
             <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-8"><Shield size={32} className="text-white" /></div>
             <h1 className="text-3xl font-black heading-font text-white tracking-tighter mb-2 uppercase">Sentinel AI</h1>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-10">{authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}</p>
-            <div className="w-full space-y-6">
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-6">{authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}</p>
+            {authError ? (
+              <div className="w-full mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-bold text-left" role="alert">{authError}</div>
+            ) : null}
+            <form className="w-full space-y-6" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
                 {authMode === 'signup' && (
-                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><LayoutList className="text-slate-600 shrink-0" size={18} /><input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Power Fitness Gym" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
+                  <>
+                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><LayoutList className="text-slate-600 shrink-0" size={18} /><input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Power Fitness Gym" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="organization" /></div></div>
+                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Mail className="text-slate-600 shrink-0" size={18} /><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="owner@example.com" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="email" /></div></div>
+                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+1 555 000 0000" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="tel" /></div></div>
+                  </>
                 )}
-                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">IDENTIFIER</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Mobile" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
-                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" /></div></div>
-            </div>
-            <button onClick={authMode === 'login' ? handleLogin : handleSignup} className="w-full bg-white text-black py-4.5 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all active:scale-95">{authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} /></button>
-            <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">{authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}</button>
+                {authMode === 'login' && (
+                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">IDENTIFIER</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Mobile" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="username" /></div></div>
+                )}
+                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} /></div></div>
+                {authMode === 'signup' && (
+                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">CONFIRM PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="new-password" /></div></div>
+                )}
+            <button type="submit" disabled={isAuthLoading || isSignupLoading} className="w-full bg-white text-black py-4 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+              {(authMode === 'login' ? isAuthLoading : isSignupLoading) ? (
+                <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin inline-block" aria-hidden /> Please wait</span>
+              ) : (
+                <>{authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} /></>
+              )}
+            </button>
+            </form>
+            <button type="button" onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">{authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}</button>
         </div>
       </div>
     );
   }
 
+  const summary = stats?.summary;
+  const registeredCount = summary?.total_members ?? users.length;
+  const visits24h = summary?.visits_last_24h ?? 0;
+  const expiriesCount = summary?.expired_members ?? users.filter((u) => u.subscription_status === 'expired').length;
+  const uptimeLabel = formatUptimeSeconds(summary?.server_uptime_seconds ?? 0);
+  const weekTrend = stats?.weekly_trend || [];
+  const peakHours = stats?.peak_hours || [];
+  const hasWeekData = weekTrend.some((d) => (d.count ?? 0) > 0);
+  const hasPeakData = peakHours.some((d) => (d.count ?? 0) > 0);
+
   return (
     <div className="min-h-screen w-full bg-[#020617] text-slate-100 selection:bg-blue-500/30">
-      <div className="max-w-[1400px] mx-auto flex flex-col relative z-20">
+      {isLoggedIn && !dashboardReady && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/75 backdrop-blur-sm">
+          <div className="glass-panel px-10 py-7 rounded-2xl border border-white/10 flex items-center gap-4 shadow-2xl">
+            <div className="w-7 h-7 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" aria-hidden />
+            <span className="text-xs font-black text-white uppercase tracking-widest">Loading your workspace</span>
+          </div>
+        </div>
+      )}
+      <div className={`max-w-[1400px] mx-auto flex flex-col relative z-20 transition-opacity duration-300 ${dashboardReady ? 'opacity-100' : 'opacity-60'}`}>
         <nav className="flex items-center justify-between py-5 px-6 border-b border-white/5 bg-[#020617]/50 backdrop-blur-3xl sticky top-0 z-50">
           <div className="flex items-center gap-4 shrink-0"><div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30"><Shield size={18} className="text-white" /></div><h1 className="text-sm font-black heading-font text-white leading-none tracking-tighter uppercase">{currentGymName || 'Sentinel_AI'}</h1></div>
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
             {['dashboard', 'logs', 'registry', 'settings'].map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>{tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}</button>
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>{tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}</button>
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => openWebcam('local')} className="py-2.5 px-6 rounded-xl flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 font-black text-[9px] uppercase tracking-widest transition-all shadow-xl active:scale-95 shrink-0"><Camera size={14} /> Master Enroll</button>
-            <button onClick={() => setIsLoggedIn(false)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0"><LogOut size={16} /></button>
+            <button type="button" onClick={() => openWebcam('local')} className="py-2.5 px-6 rounded-xl flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 font-black text-[9px] uppercase tracking-widest transition-all shadow-xl active:scale-95 shrink-0"><Camera size={14} /> Master Enroll</button>
+            <button type="button" onClick={() => { localStorage.removeItem('owner_id'); localStorage.removeItem('gym_name'); setOwnerId(null); setIsLoggedIn(false); setDashboardReady(true); }} className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0" title="Sign out"><LogOut size={16} /></button>
           </div>
         </nav>
 
         <main className="p-8 md:p-10 flex-1 flex flex-col gap-10">
           <header className="flex justify-between items-end border-b-2 border-white/5 pb-6 text-left">
             <div><h2 className="text-3xl font-black heading-font text-white tracking-widest uppercase mb-2">{activeTab.toUpperCase()} PROTOCOL</h2><div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /><p className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Active surveillance stream ready</p></div></div>
-            <div className="text-right"><span className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">System Latency</span><span className="text-md font-black text-emerald-500">18ms Optimized</span></div>
+            <div className="text-right">
+              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">API latency</span>
+              <span className={`text-md font-black tabular-nums ${apiLatencyMs != null && apiLatencyMs < 800 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                {apiLatencyMs != null ? `${apiLatencyMs} ms` : '—'}
+              </span>
+            </div>
           </header>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -465,7 +604,7 @@ function App() {
                                 <button onClick={() => setIsWebcamNodeActive(!isWebcamNodeActive)} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 ${isWebcamNodeActive ? 'bg-red-600 text-white' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'}`}><Camera size={14} /> {isWebcamNodeActive ? 'Disconnect Webcam' : 'Connect Webcam'}</button>
                               </div>
                               <div className="flex flex-col lg:flex-row gap-8">
-                                <div className="flex-1"><StreamGrid telemetry={telemetry} onSnapshot={(img) => setSnapshots(prev => [{id: Date.now(), img, time: new Date().toISOString()}, ...prev].slice(0, 5))} /></div>
+                                <div className="flex-1"><StreamGrid telemetry={telemetry} savedCameraCount={savedNodes.length} onSnapshot={(img) => setSnapshots(prev => [{id: Date.now(), img, time: new Date().toISOString()}, ...prev].slice(0, 5))} /></div>
                                 <div className="lg:w-[300px] flex flex-col gap-6">
                                    <div className="glass-panel p-6 bg-blue-600/5 border border-blue-600/20 rounded-3xl"><h3 className="text-[10px] font-black text-white uppercase mb-4">Security Notice</h3><p className="text-[10px] text-slate-500 font-bold leading-relaxed">System is performing real-time biometric hashing. All unrecognized identities are flagged.</p></div>
                                    {lastRecognition && (<div className="glass-panel p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl animate-in zoom-in-95"><div className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Identity Confirmed</div><div className="text-xl font-black text-white">{lastRecognition.name}</div></div>)}
@@ -474,10 +613,10 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                {[
-                                 { l: 'Registered', v: users.length, i: Users, c: 'text-blue-500' },
-                                 { l: 'Visits 24h', v: logs.length, i: Activity, c: 'text-emerald-500' },
-                                 { l: 'Expiries', v: users.filter(u => u.subscription_status === 'expired').length, i: ShieldAlert, c: 'text-red-500' },
-                                 { l: 'Uptime', v: `${Math.floor(telemetry?.uptime / 3600) || 0}h`, i: Settings, c: 'text-purple-500' }
+                                 { l: 'Registered', v: registeredCount, i: Users, c: 'text-blue-500' },
+                                 { l: 'Visits 24h', v: visits24h, i: Activity, c: 'text-emerald-500' },
+                                 { l: 'Expiries', v: expiriesCount, i: ShieldAlert, c: 'text-red-500' },
+                                 { l: 'Uptime', v: uptimeLabel, i: Settings, c: 'text-purple-500' }
                                ].map((stat, i) => (
                                  <div key={i} className="glass-panel p-6 bg-white/[0.01] border-white/5 rounded-3xl flex flex-col gap-2">
                                     <stat.i className={stat.c} size={24} /><div className="text-2xl font-black text-white tracking-tighter">{stat.v}</div><div className="text-[8px] text-slate-500 font-black uppercase tracking-widest">{stat.l}</div>
@@ -485,8 +624,8 @@ function App() {
                                ))}
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Attendance Trend</h4><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><AreaChart data={stats?.weekly_trend || []}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="day" hide /><YAxis hide /><Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px'}} /><Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" /></AreaChart></ResponsiveContainer></div></div>
-                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Peak Activity</h4><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><BarChart data={stats?.peak_hours || []}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="hour" hide /><YAxis hide /><Bar dataKey="count" radius={[4, 4, 0, 0]}>{(stats?.peak_hours || []).map((e, idx) => (<Cell key={`cell-${idx}`} fill={e.count > 0 ? '#2563eb' : '#ffffff05'} />))}</Bar></BarChart></ResponsiveContainer></div></div>
+                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Attendance Trend</h4><div className="flex-1 min-h-0 relative">{!hasWeekData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[11px] text-slate-600 font-bold">No check-ins in the last 7 days yet. Visits will appear here once members are recognized.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><AreaChart data={weekTrend}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="day" hide /><YAxis hide /><Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px'}} /><Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" /></AreaChart></ResponsiveContainer></div></div>
+                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Peak Activity</h4><div className="flex-1 min-h-0 relative">{!hasPeakData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[11px] text-slate-600 font-bold">No visits recorded today between 6:00 and 22:00 yet.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><BarChart data={peakHours}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="hour" hide /><YAxis hide /><Bar dataKey="count" radius={[4, 4, 0, 0]}>{peakHours.map((e, idx) => (<Cell key={`cell-${idx}`} fill={e.count > 0 ? '#2563eb' : '#ffffff05'} />))}</Bar></BarChart></ResponsiveContainer></div></div>
                             </div>
                           </div>
                         ) : activeTab === 'registry' ? (
@@ -495,7 +634,7 @@ function App() {
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {users.filter(u => {
                                    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase());
-                                   const isExpired = u.subscription_expiry ? new Date(u.subscription_expiry) < new Date() : true;
+                                   const isExpired = u.subscription_expiry != null && new Date(u.subscription_expiry) < new Date();
                                    if (filterType === 'active') return matchesSearch && !isExpired;
                                    if (filterType === 'expired') return matchesSearch && isExpired;
                                    return matchesSearch;
@@ -504,7 +643,19 @@ function App() {
                                    <div className="flex items-center gap-4"><div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/5"><img src={u.image_path?.startsWith('http') ? u.image_path : `${API_BASE}/${u.image_path}`} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" alt="" /></div><div><div className="text-md font-black text-white uppercase tracking-tighter leading-none">{u.name}</div><div className="text-[7px] font-black text-slate-500 uppercase mt-2 px-1.5 py-0.5 bg-white/5 rounded w-fit">Exp: {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'No Plan'}</div></div></div>
                                    <div className="flex gap-1.5"><button onClick={() => {setEditingUser(u); setNewName(u.name); setNewRole(u.role); setNewExpiry(u.subscription_expiry ? u.subscription_expiry.split('T')[0] : '');}} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={15} /></button><button onClick={() => deleteUser(u.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-600 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={15} /></button></div>
                                 </div>
-                             ))}</div>
+                             ))}
+                             {users.length === 0 ? (
+                               <div className="col-span-full py-16 text-center text-slate-600 text-sm font-bold">No members enrolled yet. Use Master Enroll to add your first member.</div>
+                             ) : users.filter(u => {
+                                   const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                   const isExpired = u.subscription_expiry != null && new Date(u.subscription_expiry) < new Date();
+                                   if (filterType === 'active') return matchesSearch && !isExpired;
+                                   if (filterType === 'expired') return matchesSearch && isExpired;
+                                   return matchesSearch;
+                                }).length === 0 ? (
+                               <div className="col-span-full py-16 text-center text-slate-600 text-sm font-bold">No members match this filter.</div>
+                             ) : null}
+                             </div>
                           </div>
                         ) : activeTab === 'settings' ? (
                           <div className="p-8 space-y-12 max-w-4xl text-left">
@@ -549,10 +700,12 @@ function App() {
                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-6 shadow-2xl">
                                  <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Active Nodes</h3></div>
                                  <div className="grid grid-cols-1 gap-4">
-                                   {savedNodes.map(node => (
+                                   {savedNodes.length === 0 ? (
+                                     <p className="text-[12px] text-slate-600 font-bold py-6 text-center">No cameras saved yet. Add a node label and RTSP link above, then click Add / Update Node.</p>
+                                   ) : savedNodes.map(node => (
                                      <div key={node.name} className="flex items-center justify-between p-4 bg-[#020617] border-2 border-white/5 rounded-3xl hover:border-blue-500/50 transition-all group">
                                        <div className="flex items-center gap-5"><div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500"><Camera size={20} /></div><div><div className="text-sm font-black text-white uppercase">{node.name}</div><div className="text-[9px] text-slate-500 truncate mt-1 w-[200px] md:w-[400px]">{node.url}</div></div></div>
-                                       <button onClick={() => handleDeleteNode(node.name)} className="w-12 h-12 flex items-center justify-center bg-white/5 text-slate-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
+                                       <button type="button" onClick={() => handleDeleteNode(node.name)} className="w-12 h-12 flex items-center justify-center bg-white/5 text-slate-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
                                      </div>
                                    ))}
                                  </div>
@@ -577,8 +730,14 @@ function App() {
                               </div>
                           </div>
                         ) : (
-                          <div className="divide-y divide-white/5">
-                             {logs.map(l => (
+                          <div className="divide-y divide-white/5 min-h-[200px]">
+                             {logs.length === 0 ? (
+                               <div className="p-16 flex flex-col items-center justify-center text-center gap-3">
+                                 <History className="text-slate-700 opacity-40" size={40} />
+                                 <p className="text-sm font-black text-slate-500 uppercase tracking-widest">No activity yet</p>
+                                 <p className="text-[12px] text-slate-600 font-bold max-w-md">Check-ins from your cameras and browser webcam will show here with time and location.</p>
+                               </div>
+                             ) : logs.map(l => (
                                 <div key={l.id} className="p-6 px-8 flex items-center justify-between hover:bg-white/[0.015] transition-all group text-left">
                                    <div className="flex items-center gap-6"><div className="w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5"><img src={l.image_path?.startsWith('http') ? l.image_path : `${API_BASE}/${l.image_path}`} className="w-full h-full object-cover" alt="" /></div><div><div className="text-xl font-black text-white tracking-tighter leading-none">{l.name}</div><div className="flex items-center gap-2 mt-2"><div className="text-[8px] font-black uppercase px-3 py-1 rounded bg-blue-500/10 text-blue-400">{l.role}</div><div className={`text-[8px] font-black uppercase px-3 py-1 rounded ${l.subscription_status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{l.subscription_status}</div></div></div></div>
                                    <div className="flex items-center gap-6 text-right"><div><div className="text-2xl font-black text-blue-500 tabular-nums">{new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><div className="text-[8px] font-black text-slate-700 uppercase mt-1">{l.location}</div></div></div>
