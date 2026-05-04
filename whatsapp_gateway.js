@@ -1,4 +1,10 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    Browsers,
+} = require("@whiskeysockets/baileys");
 const { Boom } = require("@hapi/boom");
 const qrcode = require("qrcode");
 const express = require("express");
@@ -10,37 +16,97 @@ app.use(express.json());
 let sock;
 let qrCodeData = null;
 let connectionStatus = "Disconnected";
+let reconnectAttempt = 0;
+let reconnectTimer = null;
+
+const MAX_RECONNECT_DELAY_MS = 60_000;
+const BASE_RECONNECT_DELAY_MS = 2_000;
+
+function scheduleReconnect(reason) {
+    if (reconnectTimer) return;
+    const delay = Math.min(
+        MAX_RECONNECT_DELAY_MS,
+        BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempt)
+    );
+    reconnectAttempt += 1;
+    console.log(`Scheduling WhatsApp reconnect in ${delay}ms (attempt ${reconnectAttempt}, reason: ${reason})`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectToWhatsApp();
+    }, delay);
+}
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
-    
+
+    let version;
+    try {
+        const fetched = await fetchLatestBaileysVersion({ timeout: 15_000 });
+        version = fetched.version;
+        if (!fetched.isLatest && fetched.error) {
+            console.warn("Using bundled Baileys version (fetch failed):", fetched.error?.message || fetched.error);
+        }
+    } catch (e) {
+        console.warn("fetchLatestBaileysVersion threw, using socket defaults:", e?.message || e);
+    }
+
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        browser: ["Sentinel AI", "Chrome", "1.1.0"],
+        browser: Browsers.ubuntu("Chrome"),
+        ...(version ? { version } : {}),
         syncFullHistory: false,
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 10000,
-        retryRequestDelayMs: 5000
+        retryRequestDelayMs: 5000,
     });
 
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update;
-        
+
         if (qr) {
             qrCodeData = qr;
         }
 
         if (connection === "close") {
-            const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log("connection closed due to ", lastDisconnect.error, ", reconnecting ", shouldReconnect);
+            const err = lastDisconnect?.error;
+            const statusCode =
+                err instanceof Boom ? err.output?.statusCode : undefined;
+            const loggedOut = statusCode === DisconnectReason.loggedOut;
+            const is405 =
+                statusCode === 405 ||
+                (err instanceof Boom &&
+                    err?.data?.reason === "405");
+
+            console.log(
+                "connection closed:",
+                err?.message || err,
+                "statusCode=",
+                statusCode,
+                "loggedOut=",
+                loggedOut
+            );
+
             connectionStatus = "Disconnected";
             qrCodeData = null;
-            if (shouldReconnect) connectToWhatsApp();
+
+            if (loggedOut) {
+                reconnectAttempt = 0;
+                return;
+            }
+
+            if (is405) {
+                console.warn(
+                    "WhatsApp handshake rejected (405). Waiting before retry — check Baileys version and browser fingerprint."
+                );
+            }
+
+            scheduleReconnect(is405 ? "405" : statusCode || "unknown");
         } else if (connection === "open") {
             console.log("opened connection");
             connectionStatus = "Connected";
             qrCodeData = null;
+            reconnectAttempt = 0;
         }
     });
 
