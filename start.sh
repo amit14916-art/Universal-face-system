@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# Start the WhatsApp Gateway in the background
-echo "Starting WhatsApp Gateway..."
-npm start &
+# WhatsApp Gateway disabled as requested
+# npm start &
 
 # Run migrations
 echo "Running Database Migrations..."

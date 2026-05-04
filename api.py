@@ -361,33 +361,7 @@ async def get_node_settings(owner_id: int):
             }
     return {"message": "No active node found"}
 
-# Proxy for WhatsApp Gateway QR
-@app.get("/api/whatsapp/qr")
-async def get_whatsapp_qr():
-    async with httpx.AsyncClient() as client:
-        try:
-            res = await client.get("http://localhost:9000/qr")
-            return res.json()
-        except:
-            return {"qr": None, "status": "Offline"}
-
-@app.get("/api/whatsapp/status")
-async def get_whatsapp_status():
-    async with httpx.AsyncClient() as client:
-        try:
-            res = await client.get("http://localhost:9000/status")
-            return res.json()
-        except:
-            return {"status": "Offline"}
-
-@app.post("/api/whatsapp/logout")
-async def logout_whatsapp():
-    async with httpx.AsyncClient() as client:
-        try:
-            res = await client.post("http://localhost:9000/logout")
-            return res.json()
-        except:
-            return {"success": False}
+# WhatsApp Integration decommissioned
 
 @app.post("/api/auth/signup")
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -572,35 +546,44 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
     ))
     today_count = today_q.scalar()
 
-    # 3. Weekly Trend (Last 7 Days)
+    # 3. Weekly Trend (Last 7 Days) - Optimized to 1 query
+    week_start = today_start - timedelta(days=6)
+    weekly_q = await db.execute(
+        select(
+            func.date_trunc('day', AttendanceLog.timestamp).label('day'),
+            func.count(AttendanceLog.id).label('count')
+        )
+        .where(
+            AttendanceLog.owner_id == owner_id,
+            AttendanceLog.timestamp >= week_start
+        )
+        .group_by(func.date_trunc('day', AttendanceLog.timestamp))
+        .order_by('day')
+    )
+    
+    weekly_data = {row.day.strftime("%a"): row.count for row in weekly_q.all()}
     weekly_trend = []
     for i in range(7):
-        d_start = today_start - timedelta(days=6-i)
-        d_end = d_start + timedelta(days=1)
-        q = await db.execute(select(func.count(AttendanceLog.id)).where(
-            AttendanceLog.owner_id == owner_id,
-            AttendanceLog.timestamp >= d_start,
-            AttendanceLog.timestamp < d_end
-        ))
-        weekly_trend.append({
-            "day": d_start.strftime("%a"),
-            "count": q.scalar()
-        })
+        d = (week_start + timedelta(days=i)).strftime("%a")
+        weekly_trend.append({"day": d, "count": weekly_data.get(d, 0)})
 
-    # 4. Peak Hours Distribution (Today)
-    peak_hours = []
-    for h in range(6, 23): # From 6 AM to 10 PM
-        h_start = today_start.replace(hour=h)
-        h_end = h_start + timedelta(hours=1)
-        q = await db.execute(select(func.count(AttendanceLog.id)).where(
+    # 4. Peak Hours Distribution (Today) - Optimized to 1 query
+    peak_q = await db.execute(
+        select(
+            func.extract('hour', AttendanceLog.timestamp).label('hour'),
+            func.count(AttendanceLog.id).label('count')
+        )
+        .where(
             AttendanceLog.owner_id == owner_id,
-            AttendanceLog.timestamp >= h_start,
-            AttendanceLog.timestamp < h_end
-        ))
-        peak_hours.append({
-            "hour": f"{h:02d}:00",
-            "count": q.scalar()
-        })
+            AttendanceLog.timestamp >= today_start
+        )
+        .group_by(func.extract('hour', AttendanceLog.timestamp))
+    )
+    
+    peak_data = {int(row.hour): row.count for row in peak_q.all()}
+    peak_hours = []
+    for h in range(6, 23):
+        peak_hours.append({"hour": f"{h:02d}:00", "count": peak_data.get(h, 0)})
 
     return {
         "summary": {

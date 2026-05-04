@@ -65,9 +65,6 @@ function App() {
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
   const [stats, setStats] = useState(null);
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [whatsappQr, setWhatsappQr] = useState(null);
-  const [whatsappStatus, setWhatsappStatus] = useState('Disconnected');
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -189,7 +186,6 @@ function App() {
       const res = await fetch(`${API_BASE}/api/settings/notifications?owner_id=${ownerId}`);
       if (res.ok) {
         const data = await res.json();
-        setWebhookUrl(data.webhook_url || '');
         setTelegramEnabled(data.telegram_enabled || false);
         setTelegramToken(data.telegram_token || '');
         setTelegramChatId(data.telegram_chat_id || '');
@@ -799,10 +795,6 @@ function App() {
                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-8 shadow-2xl">
                                  <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Alerts</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-channel delivery system</p></div>
                                  <div className="space-y-6">
-                                    <div className="glass-panel p-8 bg-white/[0.02] border-2 border-white/10 rounded-[32px] flex flex-col md:flex-row items-center gap-10">
-                                       <div className="shrink-0">{whatsappStatus === 'Connected' ? (<div className="w-40 h-40 bg-emerald-500/10 rounded-[32px] border-4 border-emerald-500/20 flex flex-col items-center justify-center gap-4"><CheckCircle size={40} className="text-emerald-500" /><button onClick={handleLogoutWA} className="text-[9px] text-slate-500 underline uppercase font-black">Logout</button></div>) : (<div className="p-4 bg-white rounded-[32px]">{whatsappQr ? <img src={whatsappQr} className="w-32 h-32" alt="QR" /> : <div className="w-32 h-32 flex items-center justify-center text-black text-[9px] font-black">SCANNING...</div>}</div>)}</div>
-                                       <div className="flex-1"><h3 className="text-xl font-black text-white uppercase mb-2">WhatsApp Bridge</h3><p className="text-[10px] text-slate-500 font-bold leading-relaxed mb-4">Scan the QR code with your WhatsApp app (Linked Devices) to send AI alerts directly from your number.</p><div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase w-fit ${whatsappStatus === 'Connected' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>Status: {whatsappStatus}</div></div>
-                                    </div>
                                     <div className="glass-panel p-8 bg-white/[0.01] rounded-[32px] space-y-6">
                                        <div className="flex items-center justify-between"><div className="flex items-center gap-4"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${telegramEnabled ? 'bg-blue-400/10 text-blue-400' : 'bg-white/5 text-slate-500'}`}><Send size={20} /></div><div><h3 className="text-sm font-black text-white uppercase">Telegram Bot</h3><p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Free instant notifications</p></div></div><button onClick={() => setTelegramEnabled(!telegramEnabled)} className={`w-12 h-6 rounded-full p-1 transition-all ${telegramEnabled ? 'bg-blue-500' : 'bg-slate-800'}`}><div className={`w-4 h-4 bg-white rounded-full transition-all ${telegramEnabled ? 'translate-x-6' : 'translate-x-0'}`} /></button></div>
                                        {telegramEnabled && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4"><input type="password" value={telegramToken} onChange={e => setTelegramToken(e.target.value)} placeholder="Bot Token" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /><input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="Chat ID" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /></div>)}
