@@ -65,9 +65,8 @@ function App() {
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
   const [stats, setStats] = useState(null);
-  const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [telegramToken, setTelegramToken] = useState('');
-  const [telegramChatId, setTelegramChatId] = useState('');
+  const [gmailAlertEnabled, setGmailAlertEnabled] = useState(false);
+  const [alertEmail, setAlertEmail] = useState('');
   const [notifyOnEntry, setNotifyOnEntry] = useState(true);
   const [notifyOnExpiry, setNotifyOnExpiry] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -186,9 +185,8 @@ function App() {
       const res = await fetch(`${API_BASE}/api/settings/notifications?owner_id=${ownerId}`);
       if (res.ok) {
         const data = await res.json();
-        setTelegramEnabled(data.telegram_enabled || false);
-        setTelegramToken(data.telegram_token || '');
-        setTelegramChatId(data.telegram_chat_id || '');
+        setGmailAlertEnabled(data.gmail_enabled || false);
+        setAlertEmail(data.alert_email || '');
         setNotifyOnEntry(data.notify_on_entry);
         setNotifyOnExpiry(data.notify_on_expiry);
       }
@@ -303,14 +301,8 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           owner_id: ownerId,
-          webhook_url: webhookUrl,
-          whatsapp_enabled: true,
-          whatsapp_number: "",
-          whatsapp_api_key: "",
-          whatsapp_provider: "native",
-          telegram_enabled: telegramEnabled,
-          telegram_token: telegramToken,
-          telegram_chat_id: telegramChatId,
+          gmail_enabled: gmailAlertEnabled,
+          alert_email: alertEmail,
           notify_on_entry: notifyOnEntry,
           notify_on_expiry: notifyOnExpiry
         })
@@ -796,8 +788,34 @@ function App() {
                                  <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Smart Alerts</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-channel delivery system</p></div>
                                  <div className="space-y-6">
                                     <div className="glass-panel p-8 bg-white/[0.01] rounded-[32px] space-y-6">
-                                       <div className="flex items-center justify-between"><div className="flex items-center gap-4"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${telegramEnabled ? 'bg-blue-400/10 text-blue-400' : 'bg-white/5 text-slate-500'}`}><Send size={20} /></div><div><h3 className="text-sm font-black text-white uppercase">Telegram Bot</h3><p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Free instant notifications</p></div></div><button onClick={() => setTelegramEnabled(!telegramEnabled)} className={`w-12 h-6 rounded-full p-1 transition-all ${telegramEnabled ? 'bg-blue-500' : 'bg-slate-800'}`}><div className={`w-4 h-4 bg-white rounded-full transition-all ${telegramEnabled ? 'translate-x-6' : 'translate-x-0'}`} /></button></div>
-                                       {telegramEnabled && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4"><input type="password" value={telegramToken} onChange={e => setTelegramToken(e.target.value)} placeholder="Bot Token" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /><input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="Chat ID" className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-blue-600 outline-none" /></div>)}
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${gmailAlertEnabled ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-slate-500'}`}><Mail size={20} /></div>
+                                            <div>
+                                              <h3 className="text-sm font-black text-white uppercase">Gmail Alerts</h3>
+                                              <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Instant face detection alerts</p>
+                                            </div>
+                                          </div>
+                                          <button onClick={() => { setGmailAlertEnabled(!gmailAlertEnabled); setTimeout(saveNotificationSettings, 100); }} className={`w-12 h-6 rounded-full p-1 transition-all ${gmailAlertEnabled ? 'bg-red-500' : 'bg-slate-800'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-all ${gmailAlertEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                          </button>
+                                        </div>
+                                        {gmailAlertEnabled && (
+                                          <div className="animate-in slide-in-from-top-4">
+                                            <div className="relative">
+                                              <input 
+                                                type="email" 
+                                                value={alertEmail} 
+                                                onChange={e => setAlertEmail(e.target.value)} 
+                                                onBlur={saveNotificationSettings}
+                                                placeholder="Enter owner gmail for alerts" 
+                                                className="w-full bg-[#020617] border-2 border-white/5 rounded-xl py-4 px-6 text-white font-bold text-xs focus:border-red-600 outline-none pr-12" 
+                                              />
+                                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700">@</div>
+                                            </div>
+                                            <p className="text-[7px] text-slate-600 font-black uppercase tracking-widest mt-3 ml-2">Saves automatically on change</p>
+                                          </div>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                       <button onClick={() => setNotifyOnEntry(!notifyOnEntry)} className={`p-6 rounded-3xl border-2 flex items-center justify-between transition-all ${notifyOnEntry ? 'bg-blue-600/10 border-blue-600 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}><div><span className="text-[8px] font-black uppercase block opacity-60">Every Scan</span><span className="text-xs font-black">Notify on Entry</span></div><CheckCircle size={24} /></button>

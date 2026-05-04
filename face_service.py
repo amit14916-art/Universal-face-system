@@ -275,63 +275,56 @@ async def trigger_notification(owner_id, user, event_type, session):
         else:
             message += f"\n⚠️ *Action Required: No active membership found.*"
 
-    async def send_all_notifications():
-        try:
-            async with httpx.AsyncClient() as client:
-                headers = {"Content-Type": "application/json", "User-Agent": "SentinelAI/1.0"}
+    # Gmail Alerts Implementation
+    if getattr(owner, 'gmail_enabled', False) and owner.alert_email:
+        async def send_email():
+            try:
+                # Retrieve SMTP credentials from environment
+                smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+                smtp_port = int(os.getenv("SMTP_PORT", "587"))
+                smtp_user = os.getenv("SMTP_USER")
+                smtp_pass = os.getenv("SMTP_PASS")
                 
-                # 1. Standard Webhook Dispatch
-                if owner.webhook_url:
-                    try:
-                        url = owner.webhook_url
-                        if "callmebot.com" in url.lower():
-                            import urllib.parse
-                            safe_msg = urllib.parse.quote(message)
-                            final_url = f"{url}&text={safe_msg}" if "?" in url else f"{url}?text={safe_msg}"
-                            await client.get(final_url, headers=headers, timeout=5)
-                        else:
-                            await client.post(url, json={"text": message, "content": message}, headers=headers, timeout=5)
-                    except Exception as e:
-                        print(f"Webhook Error: {e}")
+                if not smtp_user or not smtp_pass:
+                    logger.error("Email Error: SMTP credentials not set in .env")
+                    return
 
-                # 2. Native WhatsApp Support (CallMeBot / UltraMsg)
-                if getattr(owner, 'whatsapp_enabled', False) and owner.whatsapp_number and owner.whatsapp_api_key:
-                    provider = getattr(owner, 'whatsapp_provider', 'callmebot').lower()
-                    try:
-                        if provider == 'callmebot':
-                            import urllib.parse
-                            safe_msg = urllib.parse.quote(message)
-                            url = f"https://api.callmebot.com/whatsapp.php?phone={owner.whatsapp_number}&text={safe_msg}&apikey={owner.whatsapp_api_key}"
-                            await client.get(url, timeout=5)
-                        elif provider == 'ultramsg':
-                            if "/" in owner.whatsapp_api_key:
-                                instance_id, token = owner.whatsapp_api_key.split("/", 1)
-                                url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
-                                payload = {"token": token, "to": owner.whatsapp_number, "body": message}
-                                await client.post(url, data=payload, timeout=5)
-                    except Exception as ws_err:
-                        print(f"WhatsApp Provider Error ({provider}): {ws_err}")
+                import smtplib
+                from email.mime.text import MIMEText
+                from email.mime.multipart import MIMEMultipart
 
-                # 3. Local WhatsApp Gateway (Baileys QR)
-                try:
-                    # We check if a local WA session is active (Simplified: just try sending)
-                    # Note: We use 127.0.0.1 because it's in the same container
-                    await client.post("http://127.0.0.1:9000/send", json={"number": owner.mobile, "message": message}, timeout=5)
-                except: pass
+                msg = MIMEMultipart()
+                msg['From'] = smtp_user
+                msg['To'] = owner.alert_email
+                msg['Subject'] = f"Sentinel Alert: {event_type} - {user.name}"
 
-                # 4. Telegram Alerts
-                if getattr(owner, 'telegram_enabled', False) and owner.telegram_token and owner.telegram_chat_id:
-                    try:
-                        tg_url = f"https://api.telegram.org/bot{owner.telegram_token}/sendMessage"
-                        await client.post(tg_url, json={"chat_id": owner.telegram_chat_id, "text": message, "parse_mode": "Markdown"}, timeout=5)
-                    except Exception as tg_err:
-                        print(f"Telegram Error: {tg_err}")
-        except Exception as e:
-            print(f"Notification System Error: {e}")
-    
-    task = asyncio.create_task(send_all_notifications())
-    background_tasks.add(task)
-    task.add_done_callback(background_tasks.discard)
+                body = f"""
+                🔔 Sentinel AI Alert
+                -------------------
+                Event: {event_type}
+                Person: {user.name}
+                Role: {user.role}
+                Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                Location: Main Entrance
+                """
+                if event_type == "Membership Expired":
+                    expiry_str = user.subscription_expiry.strftime('%d-%m-%Y') if user.subscription_expiry else "N/A"
+                    body += f"\nACTION REQUIRED: Membership expired on {expiry_str}"
+
+                msg.attach(MIMEText(body, 'plain'))
+
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+                server.quit()
+                logger.info(f"Alert email sent to {owner.alert_email}")
+            except Exception as e:
+                logger.error(f"Failed to send email alert: {e}")
+
+        task = asyncio.create_task(send_email())
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
 
 
 async def save_face_image(id_val, crop_img):

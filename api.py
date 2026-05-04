@@ -76,16 +76,10 @@ class SignupRequest(BaseModel):
 
 class NotificationSettingsRequest(BaseModel):
     owner_id: int
-    webhook_url: str
-    whatsapp_enabled: bool = False
-    whatsapp_number: str = ""
-    whatsapp_api_key: str = ""
-    whatsapp_provider: str = "callmebot"
-    telegram_enabled: bool = False
-    telegram_token: str = ""
-    telegram_chat_id: str = ""
-    notify_on_entry: bool
-    notify_on_expiry: bool
+    gmail_enabled: bool = False
+    alert_email: str = ""
+    notify_on_entry: bool = True
+    notify_on_expiry: bool = True
 
 class SubscriptionRequest(BaseModel):
     user_id: int
@@ -667,14 +661,8 @@ async def update_notification_settings(request: NotificationSettingsRequest, db:
     owner = result.scalars().first()
     if not owner: raise HTTPException(status_code=404, detail="Owner not found")
     
-    owner.webhook_url = request.webhook_url
-    owner.whatsapp_enabled = request.whatsapp_enabled
-    owner.whatsapp_number = request.whatsapp_number
-    owner.whatsapp_api_key = request.whatsapp_api_key
-    owner.whatsapp_provider = request.whatsapp_provider
-    owner.telegram_enabled = request.telegram_enabled
-    owner.telegram_token = request.telegram_token
-    owner.telegram_chat_id = request.telegram_chat_id
+    owner.gmail_enabled = request.gmail_enabled
+    owner.alert_email = request.alert_email
     owner.notify_on_entry = request.notify_on_entry
     owner.notify_on_expiry = request.notify_on_expiry
     
@@ -688,14 +676,8 @@ async def get_notification_settings(owner_id: int, db: AsyncSession = Depends(ge
     if not owner: raise HTTPException(status_code=404, detail="Owner not found")
     
     return {
-        "webhook_url": owner.webhook_url,
-        "whatsapp_enabled": owner.whatsapp_enabled,
-        "whatsapp_number": owner.whatsapp_number,
-        "whatsapp_api_key": owner.whatsapp_api_key,
-        "whatsapp_provider": owner.whatsapp_provider,
-        "telegram_enabled": owner.telegram_enabled,
-        "telegram_token": owner.telegram_token,
-        "telegram_chat_id": owner.telegram_chat_id,
+        "gmail_enabled": owner.gmail_enabled,
+        "alert_email": owner.alert_email,
         "notify_on_entry": owner.notify_on_entry,
         "notify_on_expiry": owner.notify_on_expiry
     }

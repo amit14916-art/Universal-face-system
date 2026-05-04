@@ -45,6 +45,8 @@ class GymOwner(Base):
     telegram_enabled = Column(Boolean, default=False)
     telegram_token = Column(String, nullable=True)
     telegram_chat_id = Column(String, nullable=True)
+    gmail_enabled = Column(Boolean, default=False)
+    alert_email = Column(String, nullable=True)
     notify_on_entry = Column(Boolean, default=True)
     notify_on_expiry = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
