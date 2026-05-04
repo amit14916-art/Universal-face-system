@@ -52,8 +52,9 @@ class BlacklistRequest(BaseModel):
 
 class NodeRequest(BaseModel):
     name: str
-    url: str
+    url: str # This will be the IP address in "Smart" mode
     owner_id: int
+    brand: str = "Generic"
     use_p2p: bool = False
     p2p_uid: str = ""
     p2p_user: str = "admin"
@@ -237,20 +238,45 @@ async def add_node(request: NodeRequest, db: AsyncSession = Depends(get_db)):
         
     try:
         final_url = request.url
-        node_name = request.name if request.name else "Gym_Camera" # Default name
+        node_name = request.name if request.name else "Gym_Camera"
         
-        # ONVIF Discovery Logic
+        # Smart Discovery Logic based on Brand
         if request.use_onvif:
-            logger.info(f"Attempting ONVIF discovery for {request.url}:{request.onvif_port}")
-            discovered_url = await onvif_utils.get_onvif_rtsp_url(
-                request.url, request.onvif_port, request.onvif_user, request.onvif_pass
-            )
-            if discovered_url:
-                logger.info(f"ONVIF Discovered URL: {discovered_url}")
-                final_url = discovered_url
-            else:
-                logger.warning("ONVIF Discovery failed, falling back to manual URL")
-
+            # Try specified port first, then common ones
+            ports_to_try = [request.onvif_port] if request.onvif_port != 80 else [80, 8080, 888, 8000]
+            discovered_url = None
+            
+            for port in ports_to_try:
+                logger.info(f"Attempting ONVIF discovery for {request.url}:{port}")
+                discovered_url = await onvif_utils.get_onvif_rtsp_url(
+                    request.url, port, request.onvif_user, request.onvif_pass
+                )
+                if discovered_url:
+                    logger.info(f"ONVIF Discovered URL on port {port}: {discovered_url}")
+                    final_url = discovered_url
+                    break
+            
+            # If ONVIF fails, try brand-specific RTSP templates
+            if not discovered_url:
+                brand = request.brand.lower()
+                user = request.onvif_user
+                pw = request.onvif_pass
+                ip = request.url
+                
+                templates = {
+                    "hikvision": [f"rtsp://{user}:{pw}@{ip}:554/Streaming/Channels/101"],
+                    "dahua": [f"rtsp://{user}:{pw}@{ip}:554/cam/realmonitor?channel=1&subtype=0"],
+                    "cp plus": [f"rtsp://{user}:{pw}@{ip}:554/cam/realmonitor?channel=1&subtype=0"],
+                    "honeywell": [f"rtsp://{user}:{pw}@{ip}:554/Streaming/Channels/1"],
+                    "axis": [f"rtsp://{user}:{pw}@{ip}/axis-media/media.amp"]
+                }
+                
+                if brand in templates:
+                    for template in templates[brand]:
+                        logger.info(f"Trying brand template for {brand}: {template}")
+                        final_url = template
+                        break
+        
         url = int(final_url) if str(final_url).isdigit() else final_url
         if isinstance(url, str) and url.startswith("http"):
             if url.count('/') < 3 or (url.count('/') == 3 and url.endswith('/')):

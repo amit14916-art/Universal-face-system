@@ -86,6 +86,11 @@ function App() {
   
   const [cameraName, setCameraName] = useState('Main_Entrance');
   const [savedNodes, setSavedNodes] = useState([]);
+  const [onboardingMode, setOnboardingMode] = useState('simple'); 
+  const [selectedBrand, setSelectedBrand] = useState('Hikvision');
+  const [cameraIp, setCameraIp] = useState('');
+  const [cameraUser, setCameraUser] = useState('admin');
+  const [cameraPass, setCameraPass] = useState('');
   
   const [isWebcamNodeActive, setIsWebcamNodeActive] = useState(false);
   const [browserStream, setBrowserStream] = useState(null);
@@ -475,27 +480,38 @@ function App() {
   };
 
   const handleUpdateNode = async () => {
-    if (!cameraUrl) return alert("Please enter a valid Stream Link");
+    const isSimple = onboardingMode === 'simple';
+    const finalUrl = isSimple ? cameraIp : cameraUrl;
+    
+    if (!finalUrl) return alert("Please enter a valid IP Address or Stream Link");
+    
     try {
-      await fetch(`${API_BASE}/api/nodes/add`, {
+      const res = await fetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: cameraName || "Gym_Camera",
-          url: cameraUrl,
+          url: finalUrl,
           owner_id: ownerId,
+          brand: selectedBrand,
           use_p2p: useP2P,
           p2p_uid: p2pUid,
           p2p_user: p2pUser,
           p2p_pass: p2pPass,
-          use_onvif: useOnvif,
-          onvif_port: parseInt(onvifPort) || 80,
-          onvif_user: onvifUser,
-          onvif_pass: onvifPass
+          use_onvif: isSimple ? true : useOnvif, // Auto ONVIF in simple mode
+          onvif_port: isSimple ? 80 : (parseInt(onvifPort) || 80),
+          onvif_user: isSimple ? cameraUser : onvifUser,
+          onvif_pass: isSimple ? cameraPass : onvifPass
         })
       });
-      alert(`Node '${cameraName || "Gym_Camera"}' initialized!`);
-      fetchSettings();
+      
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Node '${cameraName || "Gym_Camera"}' initialized! ${data.onvif_success ? "(Auto-Discovered)" : ""}`);
+        fetchSettings();
+      } else {
+        alert("Failed to add node: " + (data.detail || "Unknown error"));
+      }
     } catch (e) { alert("Failed to add node."); }
   };
 
@@ -660,42 +676,112 @@ function App() {
                         ) : activeTab === 'settings' ? (
                           <div className="p-8 space-y-12 max-w-4xl text-left">
                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-8 shadow-2xl">
-                                <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Node Configuration</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Connect surveillance hardware</p></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                   <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Node Label</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4"><Activity className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraName} onChange={e => setCameraName(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
-                                   <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">RTSP Link</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4"><Camera className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraUrl} onChange={e => setCameraUrl(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
+                                <div className="border-b border-white/5 pb-4 flex justify-between items-center">
+                                   <div>
+                                      <h3 className="text-xl font-black text-white uppercase tracking-tighter">Camera Onboarding</h3>
+                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Connect your gym surveillance system</p>
+                                   </div>
+                                   <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+                                      <button onClick={() => setOnboardingMode('simple')} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${onboardingMode === 'simple' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Simple</button>
+                                      <button onClick={() => setOnboardingMode('advanced')} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${onboardingMode === 'advanced' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Advanced</button>
+                                   </div>
                                 </div>
 
-                                {/* P2P CONFIGURATION */}
-                                <div className="glass-panel p-6 bg-white/[0.01] rounded-3xl space-y-4 border border-white/5">
-                                   <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${useP2P ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-600'}`}><MapPin size={16} /></div><span className="text-[10px] font-black text-white uppercase">P2P Tunneling</span></div>
-                                      <button onClick={() => setUseP2P(!useP2P)} className={`w-10 h-5 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-500' : 'bg-slate-800'}`}><div className={`w-3 h-3 bg-white rounded-full transition-all ${useP2P ? 'translate-x-5' : 'translate-x-0'}`} /></button>
-                                   </div>
-                                   {useP2P && (
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2">
-                                         <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="P2P UID" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
-                                         <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="User" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
-                                         <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="Pass" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                {onboardingMode === 'simple' ? (
+                                   <div className="space-y-6 animate-in slide-in-from-top-2">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Camera Brand</label>
+                                            <select 
+                                               value={selectedBrand} 
+                                               onChange={e => setSelectedBrand(e.target.value)}
+                                               className="w-full bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 text-sm text-white font-bold focus:outline-none focus:border-blue-600 appearance-none"
+                                            >
+                                               {['Hikvision', 'CP Plus', 'Dahua', 'Honeywell', 'Panasonic', 'Axis', 'Generic'].map(b => (
+                                                  <option key={b} value={b}>{b}</option>
+                                               ))}
+                                            </select>
+                                         </div>
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Camera Label (e.g. Front Gate)</label>
+                                            <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                                               <Activity className="text-blue-500 shrink-0" size={18} />
+                                               <input type="text" value={cameraName} onChange={e => setCameraName(e.target.value)} placeholder="Main Entrance" className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" />
+                                            </div>
+                                         </div>
                                       </div>
-                                   )}
-                                </div>
 
-                                {/* ONVIF CONFIGURATION */}
-                                <div className="glass-panel p-6 bg-white/[0.01] rounded-3xl space-y-4 border border-white/5">
-                                   <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${useOnvif ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-slate-600'}`}><Settings size={16} /></div><span className="text-[10px] font-black text-white uppercase">ONVIF Discovery</span></div>
-                                      <button onClick={() => setUseOnvif(!useOnvif)} className={`w-10 h-5 rounded-full p-1 transition-all ${useOnvif ? 'bg-purple-500' : 'bg-slate-800'}`}><div className={`w-3 h-3 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-5' : 'translate-x-0'}`} /></button>
-                                   </div>
-                                   {useOnvif && (
-                                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
-                                         <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="Port (80)" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
-                                         <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="User" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
-                                         <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="Pass" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Camera IP Address</label>
+                                            <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                                               <MapPin className="text-blue-500 shrink-0" size={18} />
+                                               <input type="text" value={cameraIp} onChange={e => setCameraIp(e.target.value)} placeholder="192.168.1.100" className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" />
+                                            </div>
+                                         </div>
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Username</label>
+                                            <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                                               <User className="text-blue-500 shrink-0" size={18} />
+                                               <input type="text" value={cameraUser} onChange={e => setCameraUser(e.target.value)} placeholder="admin" className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" />
+                                            </div>
+                                         </div>
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Password</label>
+                                            <div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                                               <Lock className="text-blue-500 shrink-0" size={18} />
+                                               <input type="password" value={cameraPass} onChange={e => setCameraPass(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" />
+                                            </div>
+                                         </div>
                                       </div>
-                                   )}
-                                </div>
-                                <button onClick={handleUpdateNode} className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-[20px] font-black text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl active:scale-95">ADD / UPDATE NODE <ArrowRight size={18} /></button>
+                                      
+                                      <div className="p-6 bg-blue-600/5 border border-blue-600/20 rounded-3xl flex items-center gap-4">
+                                         <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 shrink-0"><Info size={20} /></div>
+                                         <p className="text-[10px] text-slate-500 font-bold leading-relaxed">System will automatically perform <b>Smart Discovery</b> using ONVIF protocol and Brand templates to find your stream.</p>
+                                      </div>
+                                   </div>
+                                ) : (
+                                   <div className="space-y-8 animate-in slide-in-from-top-2">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                         <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Node Label</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Activity className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraName} onChange={e => setCameraName(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
+                                         <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">RTSP Link</label><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Camera className="text-blue-500 shrink-0" size={18} /><input type="text" value={cameraUrl} onChange={e => setCameraUrl(e.target.value)} className="w-full bg-transparent border-none text-sm text-white font-bold ml-4 focus:outline-none" /></div></div>
+                                      </div>
+
+                                      {/* P2P CONFIGURATION */}
+                                      <div className="glass-panel p-6 bg-white/[0.01] rounded-3xl space-y-4 border border-white/5">
+                                         <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${useP2P ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-600'}`}><MapPin size={16} /></div><span className="text-[10px] font-black text-white uppercase">P2P Tunneling</span></div>
+                                            <button onClick={() => setUseP2P(!useP2P)} className={`w-10 h-5 rounded-full p-1 transition-all ${useP2P ? 'bg-blue-500' : 'bg-slate-800'}`}><div className={`w-3 h-3 bg-white rounded-full transition-all ${useP2P ? 'translate-x-5' : 'translate-x-0'}`} /></button>
+                                         </div>
+                                         {useP2P && (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2">
+                                               <input value={p2pUid} onChange={e => setP2pUid(e.target.value)} placeholder="P2P UID" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                               <input value={p2pUser} onChange={e => setP2pUser(e.target.value)} placeholder="User" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                               <input type="password" value={p2pPass} onChange={e => setP2pPass(e.target.value)} placeholder="Pass" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                            </div>
+                                         )}
+                                      </div>
+
+                                      {/* ONVIF CONFIGURATION */}
+                                      <div className="glass-panel p-6 bg-white/[0.01] rounded-3xl space-y-4 border border-white/5">
+                                         <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${useOnvif ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-slate-600'}`}><Settings size={16} /></div><span className="text-[10px] font-black text-white uppercase">ONVIF Discovery</span></div>
+                                            <button onClick={() => setUseOnvif(!useOnvif)} className={`w-10 h-5 rounded-full p-1 transition-all ${useOnvif ? 'bg-purple-500' : 'bg-slate-800'}`}><div className={`w-3 h-3 bg-white rounded-full transition-all ${useOnvif ? 'translate-x-5' : 'translate-x-0'}`} /></button>
+                                         </div>
+                                         {useOnvif && (
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
+                                               <input type="number" value={onvifPort} onChange={e => setOnvifPort(e.target.value)} placeholder="Port (80)" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                               <input value={onvifUser} onChange={e => setOnvifUser(e.target.value)} placeholder="User" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                               <input type="password" value={onvifPass} onChange={e => setOnvifPass(e.target.value)} placeholder="Pass" className="bg-[#020617] border border-white/5 rounded-xl py-3 px-4 text-xs text-white" />
+                                            </div>
+                                         )}
+                                      </div>
+                                   </div>
+                                )}
+                                
+                                <button onClick={handleUpdateNode} className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-[20px] font-black text-sm flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl active:scale-95">
+                                   {onboardingMode === 'simple' ? 'CONNECT CAMERA NOW' : 'ADD / UPDATE NODE'} <ArrowRight size={18} />
+                                </button>
                               </div>
                               <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] space-y-6 shadow-2xl">
                                  <div className="border-b border-white/5 pb-4"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Active Nodes</h3></div>
