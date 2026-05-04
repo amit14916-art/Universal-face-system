@@ -127,10 +127,14 @@ class SentinelNode:
         connected = False
         self.status = "Connecting"
         for i in range(max_retries):
-            log_print(f"INFO: [{self.name}] Connection attempt {i+1}/{max_retries}...")
+            # Exponential backoff: delay starts at STREAM_RETRY_DELAY_SEC and grows
+            current_delay = min(30, STREAM_RETRY_DELAY_SEC * (2 ** i))
+            log_print(f"INFO: [{self.name}] Connection attempt {i+1}/{max_retries} (Next retry in {current_delay if i > 0 else 0}s)...")
+            
             if self.cap is not None:
                 self.cap.release()
                 self.cap = None
+            
             self.cap = cv2.VideoCapture(source)
             
             if self.cap.isOpened():
@@ -140,10 +144,11 @@ class SentinelNode:
                     connected = True
                     break
                 else:
-                    log_print(f"WARNING: [{self.name}] Connected but stream empty. Retrying...")
+                    log_print(f"WARNING: [{self.name}] Connected but stream empty.")
             
-            log_print(f"ERROR: [{self.name}] Attempt {i+1} failed. Next retry in {STREAM_RETRY_DELAY_SEC}s...")
-            time.sleep(STREAM_RETRY_DELAY_SEC)
+            if i < max_retries - 1:
+                log_print(f"ERROR: [{self.name}] Attempt {i+1} failed. Retrying in {current_delay}s...")
+                time.sleep(current_delay)
 
         if not connected:
             log_print(f"FATAL: [{self.name}] Could not open stream {source}. Check URL/Network.")

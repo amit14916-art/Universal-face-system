@@ -79,31 +79,29 @@ async function connectToWhatsApp() {
                     err?.data?.reason === "405");
 
             console.log(
-                "connection closed:",
-                err?.message || err,
-                "statusCode=",
-                statusCode,
-                "loggedOut=",
-                loggedOut
+                `Connection closed: ${err?.message || err}. StatusCode: ${statusCode}. LoggedOut: ${loggedOut}`
             );
 
             connectionStatus = "Disconnected";
             qrCodeData = null;
 
             if (loggedOut) {
+                console.log("Logged out. Reconnect manually.");
                 reconnectAttempt = 0;
                 return;
             }
 
             if (is405) {
                 console.warn(
-                    "WhatsApp handshake rejected (405). Waiting before retry — check Baileys version and browser fingerprint."
+                    "WhatsApp handshake rejected (405). This usually means the browser fingerprint or Baileys version is blocked. Applying extended delay."
                 );
+                // For 405, we might want to reset the session if it persists, 
+                // but for now let's just use the exponential backoff which is already implemented.
             }
 
             scheduleReconnect(is405 ? "405" : statusCode || "unknown");
         } else if (connection === "open") {
-            console.log("opened connection");
+            console.log("WhatsApp connection opened successfully.");
             connectionStatus = "Connected";
             qrCodeData = null;
             reconnectAttempt = 0;
