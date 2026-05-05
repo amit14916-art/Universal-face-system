@@ -11,6 +11,7 @@ from typing import List
 import uvicorn
 import asyncio
 import time
+from datetime import datetime
 
 _APP_START_MONOTONIC: float | None = None
 
@@ -372,7 +373,54 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
     )
     db.add(new_owner)
     await db.commit()
+    await db.refresh(new_owner)
+    
+    # Trigger Admin Notification
+    asyncio.create_task(send_admin_signup_notification(new_owner))
+    
     return {"message": "Account created successfully", "status": "success"}
+
+async def send_admin_signup_notification(owner):
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email:
+        return
+
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    if not smtp_user or not smtp_pass:
+        logger.warning("Admin Notification: SMTP credentials missing.")
+        return
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = admin_email
+        msg['Subject'] = f"🚀 New Gym Owner Signup: {owner.gym_name}"
+
+        body = f"""
+        A new gym owner has signed up on the Universal Face System!
+        
+        Gym Name: {owner.gym_name}
+        Email: {owner.email}
+        Mobile: {owner.mobile}
+        Signup Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        
+        System ID: {owner.id}
+        """
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP(os.getenv("SMTP_SERVER", "smtp.gmail.com"), int(os.getenv("SMTP_PORT", "587")))
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        logger.info(f"Admin notification sent to {admin_email}")
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {e}")
 
 @app.post("/api/auth/login")
 async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
@@ -398,6 +446,21 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
         "gym_name": owner.gym_name
     }
 
+@app.get("/api/admin/owners")
+async def get_all_owners(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GymOwner).order_by(GymOwner.id.desc()))
+    owners = result.scalars().all()
+    out = []
+    for o in owners:
+        out.append({
+            "id": o.id,
+            "gym_name": o.gym_name,
+            "email": o.email,
+            "mobile": o.mobile,
+            "created_at": o.created_at if hasattr(o, 'created_at') else None
+        })
+    return out
+
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/faces", StaticFiles(directory="static/faces"), name="faces")
@@ -406,6 +469,10 @@ app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets
 @app.get("/")
 async def root():
     return FileResponse("frontend/dist/index.html")
+
+@app.get("/admin")
+async def admin_page():
+    return FileResponse("static/admin.html")
 
 @app.get("/api/export/attendance")
 async def export_attendance(owner_id: int, db: AsyncSession = Depends(get_db)):
@@ -542,16 +609,17 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
 
     # 3. Weekly Trend (Last 7 Days) - Optimized to 1 query
     week_start = today_start - timedelta(days=6)
+    day_trunc = func.date_trunc('day', AttendanceLog.timestamp)
     weekly_q = await db.execute(
         select(
-            func.date_trunc('day', AttendanceLog.timestamp).label('day'),
+            day_trunc.label('day'),
             func.count(AttendanceLog.id).label('count')
         )
         .where(
             AttendanceLog.owner_id == owner_id,
             AttendanceLog.timestamp >= week_start
         )
-        .group_by(func.date_trunc('day', AttendanceLog.timestamp))
+        .group_by(day_trunc)
         .order_by('day')
     )
     
@@ -562,16 +630,17 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
         weekly_trend.append({"day": d, "count": weekly_data.get(d, 0)})
 
     # 4. Peak Hours Distribution (Today) - Optimized to 1 query
+    hour_extract = func.extract('hour', AttendanceLog.timestamp)
     peak_q = await db.execute(
         select(
-            func.extract('hour', AttendanceLog.timestamp).label('hour'),
+            hour_extract.label('hour'),
             func.count(AttendanceLog.id).label('count')
         )
         .where(
             AttendanceLog.owner_id == owner_id,
             AttendanceLog.timestamp >= today_start
         )
-        .group_by(func.extract('hour', AttendanceLog.timestamp))
+        .group_by(hour_extract)
     )
     
     peak_data = {int(row.hour): row.count for row in peak_q.all()}
@@ -596,11 +665,12 @@ async def get_stats(owner_id: int, db: AsyncSession = Depends(get_db)):
 async def get_user_activity(user_id: int, db: AsyncSession = Depends(get_db)):
     # Get attendance counts for last 30 days
     thirty_days_ago = datetime.now() - timedelta(days=30)
+    date_expr = func.date(AttendanceLog.timestamp)
     result = await db.execute(
-        select(func.date(AttendanceLog.timestamp), func.count(AttendanceLog.id))
+        select(date_expr, func.count(AttendanceLog.id))
         .where(AttendanceLog.face_id == user_id, AttendanceLog.timestamp >= thirty_days_ago)
-        .group_by(func.date(AttendanceLog.timestamp))
-        .order_by(func.date(AttendanceLog.timestamp))
+        .group_by(date_expr)
+        .order_by(date_expr)
     )
     
     activity = result.all()

@@ -545,6 +545,7 @@ function App() {
             </button>
             </form>
             <button type="button" onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">{authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}</button>
+            <button type="button" onClick={() => window.location.href = '/admin'} className="mt-4 text-[9px] font-black text-blue-500/50 uppercase tracking-widest hover:text-blue-500 transition-colors flex items-center gap-2"><ShieldAlert size={12} /> Admin Control Panel</button>
         </div>
       </div>
     );
