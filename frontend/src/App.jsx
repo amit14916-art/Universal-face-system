@@ -664,6 +664,7 @@ function App() {
                                      avg_accuracy: data.accuracy
                                    })
                                  });
+                                 await fetchData();
                                  alert(`Session Saved! ${data.exercise}: ${data.reps} reps, ${data.accuracy}% accuracy`);
                                } catch (e) {
                                  console.error("Failed to save workout", e);

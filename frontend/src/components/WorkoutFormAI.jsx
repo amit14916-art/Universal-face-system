@@ -58,6 +58,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   // MediaPipe callback still sees the old captured value)
   const stageRef    = useRef('up');
   const exerciseRef = useRef('Squats');
+  const isActiveRef = useRef(false);
 
   // Initialization Check (must be before any hook calls)
   if (!Pose || !Camera) {
@@ -79,12 +80,11 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   const [allAccuracies, setAllAccuracies] = useState([]);
   const [poseVisible,   setPoseVisible]   = useState(false);     // detection status
 
-  // Keep exerciseRef in sync with state so onResults always has the fresh value
+  // Keep refs in sync with state
   useEffect(() => { exerciseRef.current = exercise; }, [exercise]);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
 
   // ─── Core Results Handler ──────────────────────────────────────────────────
-  // useCallback with empty deps so MediaPipe always calls the same fn reference;
-  // internal state is accessed via refs, not closures.
   const onResults = useCallback((results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -100,6 +100,13 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     }
 
     setPoseVisible(true);
+    // Only process exercise logic if the session is ACTIVE
+    if (!isActiveRef.current) {
+        // Just draw the skeleton for positioning, then exit
+        drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#ffffff44', lineWidth: 1 });
+        ctx.restore();
+        return;
+    }
     const lm = results.poseLandmarks;
 
     // Draw skeleton
@@ -316,10 +323,12 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     pose.onResults(onResults);
 
     let camera = null;
-    if (isActive && videoRef.current) {
+    if (videoRef.current) {
       camera = new Camera(videoRef.current, {
         onFrame: async () => {
-          await pose.send({ image: videoRef.current });
+          if (videoRef.current) {
+            await pose.send({ image: videoRef.current });
+          }
         },
         width: 640,
         height: 480,
@@ -331,7 +340,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
       if (camera) camera.stop();
       pose.close();
     };
-  }, [isActive, exercise, onResults]);
+  }, [exercise, onResults]);
 
   // ─── Reset stage ref when exercise changes ─────────────────────────────────
   const handleExerciseChange = (ex) => {
