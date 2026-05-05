@@ -38,6 +38,13 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "face"
 
+class WorkoutSaveRequest(BaseModel):
+    owner_id: int
+    member_id: int
+    exercise_name: str
+    reps: int
+    avg_accuracy: int
+
 class RegisterRequest(BaseModel):
     owner_id: int
     name: str
