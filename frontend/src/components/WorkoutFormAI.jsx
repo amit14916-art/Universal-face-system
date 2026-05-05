@@ -4,13 +4,27 @@ import * as mpDrawing from '@mediapipe/drawing_utils';
 import * as mpCamera from '@mediapipe/camera_utils';
 import { AlertCircle, CheckCircle2, Play, Square, Activity, Info, Camera as LucideCamera } from 'lucide-react';
 
-const { Pose, POSE_CONNECTIONS } = mpPose;
-const { drawConnectors, drawLandmarks } = mpDrawing;
-const { Camera } = mpCamera;
+const Pose = mpPose.Pose || mpPose.default?.Pose || (typeof window !== 'undefined' && window.Pose);
+const POSE_CONNECTIONS = mpPose.POSE_CONNECTIONS || mpPose.default?.POSE_CONNECTIONS || (typeof window !== 'undefined' && window.POSE_CONNECTIONS);
+const drawConnectors = mpDrawing.drawConnectors || mpDrawing.default?.drawConnectors || (typeof window !== 'undefined' && window.drawConnectors);
+const drawLandmarks = mpDrawing.drawLandmarks || mpDrawing.default?.drawLandmarks || (typeof window !== 'undefined' && window.drawLandmarks);
+const Camera = mpCamera.Camera || mpCamera.default?.Camera || (typeof window !== 'undefined' && window.Camera);
 
 const WorkoutFormAI = ({ onSessionEnd }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  
+  // Initialization Check
+  if (!Pose || !Camera) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 bg-slate-900/50 rounded-[40px] border border-white/5 text-center">
+        <AlertCircle size={48} className="text-red-500 mb-4" />
+        <h3 className="text-xl font-bold text-white mb-2">AI Modules Loading...</h3>
+        <p className="text-slate-400 max-w-md">The AI tracking engine is initializing. Please wait a moment or refresh the page if this message persists.</p>
+      </div>
+    );
+  }
+
   const [isActive, setIsActive] = useState(false);
   const [exercise, setExercise] = useState('Squats');
   const [feedback, setFeedback] = useState('Stand in view to begin');
