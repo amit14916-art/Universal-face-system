@@ -1,14 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as mpPose from '@mediapipe/pose';
-import * as mpDrawing from '@mediapipe/drawing_utils';
-import * as mpCamera from '@mediapipe/camera_utils';
 import { AlertCircle, CheckCircle2, Play, Square, Activity, Info, Camera as LucideCamera } from 'lucide-react';
 
-const Pose = mpPose.Pose || mpPose.default?.Pose || (typeof window !== 'undefined' && window.Pose);
-const POSE_CONNECTIONS = mpPose.POSE_CONNECTIONS || mpPose.default?.POSE_CONNECTIONS || (typeof window !== 'undefined' && window.POSE_CONNECTIONS);
-const drawConnectors = mpDrawing.drawConnectors || mpDrawing.default?.drawConnectors || (typeof window !== 'undefined' && window.drawConnectors);
-const drawLandmarks = mpDrawing.drawLandmarks || mpDrawing.default?.drawLandmarks || (typeof window !== 'undefined' && window.drawLandmarks);
-const Camera = mpCamera.Camera || mpCamera.default?.Camera || (typeof window !== 'undefined' && window.Camera);
+/* Global MediaPipe objects from index.html scripts */
+const Pose = window.Pose;
+const POSE_CONNECTIONS = window.POSE_CONNECTIONS;
+const drawConnectors = window.drawConnectors;
+const drawLandmarks = window.drawLandmarks;
+const Camera = window.Camera;
 
 const WorkoutFormAI = ({ onSessionEnd }) => {
   const videoRef = useRef(null);
