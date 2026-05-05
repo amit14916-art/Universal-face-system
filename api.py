@@ -449,7 +449,7 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/admin/owners")
 async def get_all_owners(admin_pass: str = None, db: AsyncSession = Depends(get_db)):
-    secret = os.getenv("ADMIN_PASSWORD", "admin123")
+    secret = os.getenv("ADMIN_PASSWORD", "Goal@2026")
     if admin_pass != secret:
         raise HTTPException(status_code=401, detail="Unauthorized access")
 
