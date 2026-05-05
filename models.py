@@ -68,3 +68,16 @@ class CameraNode(Base):
     onvif_user = Column(String, nullable=True)
     onvif_pass = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
+
+class WorkoutSession(Base):
+    __tablename__ = "workout_sessions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, nullable=False, index=True)
+    member_id = Column(Integer, nullable=False) # RegisteredFace.id
+    exercise_name = Column(String, nullable=False)
+    reps = Column(Integer, default=0)
+    sets = Column(Integer, default=0)
+    avg_accuracy = Column(Integer, default=0) # 0-100
+    notes = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.now)

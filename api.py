@@ -75,6 +75,13 @@ class SignupRequest(BaseModel):
     mobile: str
     password: str
 
+class WorkoutSaveRequest(BaseModel):
+    owner_id: int
+    member_id: int
+    exercise_name: str
+    reps: int
+    avg_accuracy: int
+
 class NotificationSettingsRequest(BaseModel):
     owner_id: int
     gmail_enabled: bool = False
@@ -446,6 +453,19 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
         "owner_id": owner.id,
         "gym_name": owner.gym_name
     }
+
+@app.post("/api/workouts/save")
+async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(get_db)):
+    new_session = WorkoutSession(
+        owner_id=request.owner_id,
+        member_id=request.member_id,
+        exercise_name=request.exercise_name,
+        reps=request.reps,
+        avg_accuracy=request.avg_accuracy
+    )
+    db.add(new_session)
+    await db.commit()
+    return {"status": "success"}
 
 @app.get("/api/admin/owners")
 async def get_all_owners(admin_pass: str = None, db: AsyncSession = Depends(get_db)):

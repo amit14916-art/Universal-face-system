@@ -65,6 +65,21 @@ async def migrate():
         await run_step("ALTER TABLE gym_owners ADD COLUMN gmail_enabled BOOLEAN DEFAULT FALSE", "gmail_enabled in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN alert_email VARCHAR", "alert_email in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN last_ip VARCHAR", "last_ip in gym_owners")
+        
+        # New Workout Table
+        await run_step("""
+            CREATE TABLE IF NOT EXISTS workout_sessions (
+                id SERIAL PRIMARY KEY,
+                owner_id INTEGER NOT NULL,
+                member_id INTEGER NOT NULL,
+                exercise_name VARCHAR NOT NULL,
+                reps INTEGER DEFAULT 0,
+                sets INTEGER DEFAULT 0,
+                avg_accuracy INTEGER DEFAULT 0,
+                notes VARCHAR,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """, "workout_sessions table")
 
     print("Migration complete.")
     await engine.dispose()

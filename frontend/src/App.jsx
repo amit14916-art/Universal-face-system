@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import './index.css';
 import StreamGrid from './components/StreamGrid';
+import WorkoutFormAI from './components/WorkoutFormAI';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -97,6 +98,8 @@ function App() {
   const [isSignupLoading, setIsSignupLoading] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(() => !localStorage.getItem('owner_id'));
   const [apiLatencyMs, setApiLatencyMs] = useState(null);
+  const [workouts, setWorkouts] = useState([]);
+  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem('owner_id')) {
@@ -575,9 +578,9 @@ function App() {
         <nav className="flex items-center justify-between py-5 px-6 border-b border-white/5 bg-[#020617]/50 backdrop-blur-3xl sticky top-0 z-50">
           <div className="flex items-center gap-4 shrink-0"><div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30"><Shield size={18} className="text-white" /></div><h1 className="text-base font-black heading-font text-white leading-none uppercase tracking-tight">{currentGymName || 'Sentinel_AI'}</h1></div>
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0 shadow-inner">
-            {['dashboard', 'logs', 'registry', 'settings'].map(tab => (
+            {['dashboard', 'workout', 'logs', 'registry', 'settings'].map(tab => (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-7 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all relative ${activeTab === tab ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' : 'text-slate-500 hover:text-white'}`}>
-                {tab === 'dashboard' ? 'Analytics' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}
+                {tab === 'dashboard' ? 'Analytics' : tab === 'workout' ? 'AI Workout' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}
                 {activeTab === tab && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_10px_white]" />}
               </button>
             ))}
@@ -639,9 +642,42 @@ function App() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[12px] font-black text-slate-500 uppercase tracking-wider mb-6">Attendance Trend</h4><div className="flex-1 min-h-0 relative">{!hasWeekData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[12px] text-slate-600 font-bold">No check-ins in the last 7 days yet.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><AreaChart data={weekTrend}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="day" hide /><YAxis hide /><Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px'}} /><Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" /></AreaChart></ResponsiveContainer></div></div>
                                 <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[12px] font-black text-slate-500 uppercase tracking-wider mb-6">Peak Activity</h4><div className="flex-1 min-h-0 relative">{!hasPeakData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[12px] text-slate-600 font-bold">No visits recorded today yet.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><BarChart data={peakHours}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="hour" hide /><YAxis hide /><Bar dataKey="count" radius={[4, 4, 0, 0]}>{peakHours.map((e, idx) => (<Cell key={`cell-${idx}`} fill={e.count > 0 ? '#2563eb' : '#ffffff05'} />))}</Bar></BarChart></ResponsiveContainer></div></div>
-                            </div>
-                          </div>
-                        ) : activeTab === 'registry' ? (
+                             </div>
+                           </div>
+                         ) : activeTab === 'workout' ? (
+                           <div className="space-y-8 p-4 animate-fade">
+                             <WorkoutFormAI onSessionEnd={async (data) => {
+                               const memberId = lastRecognition?.id || 1; 
+                               setIsSavingWorkout(true);
+                               try {
+                                 await fetch(`${API_BASE}/api/workouts/save`, {
+                                   method: 'POST',
+                                   headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify({
+                                     owner_id: ownerId,
+                                     member_id: memberId,
+                                     exercise_name: data.exercise,
+                                     reps: data.reps,
+                                     avg_accuracy: data.accuracy
+                                   })
+                                 });
+                                 alert(`Session Saved! ${data.exercise}: ${data.reps} reps, ${data.accuracy}% accuracy`);
+                               } catch (e) {
+                                 console.error("Failed to save workout", e);
+                               }
+                               setIsSavingWorkout(false);
+                             }} />
+                             
+                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6">
+                               <h3 className="text-xl font-black text-white uppercase tracking-tight">Recent Sessions</h3>
+                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div className="glass-panel p-6 bg-white/[0.02] border-white/5 rounded-3xl text-center">
+                                    <p className="text-slate-500 font-bold text-xs uppercase">No sessions logged yet.</p>
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+                         ) : activeTab === 'registry' ? (
                           <div className="w-full h-full text-left p-4">
                              <div className="flex gap-4 mb-8 overflow-x-auto pb-2">{['all', 'active', 'expired'].map(f => (<button key={f} onClick={() => setFilterType(f)} className={`px-8 py-3.5 rounded-2xl font-black text-[12px] uppercase tracking-wider transition-all ${filterType === f ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-500'}`}>{f}</button>))}</div>
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
