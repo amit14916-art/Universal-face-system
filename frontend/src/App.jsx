@@ -153,6 +153,7 @@ function App() {
         fetch(`${baseUrl}/api/users${cacheBuster}`),
         fetch(`${baseUrl}/api/telemetry${cacheBuster}`),
         fetch(`${baseUrl}/api/stats${cacheBuster}`),
+        fetch(`${baseUrl}/api/workouts${cacheBuster}`),
       ];
       const settled = await Promise.allSettled(reqs);
 
@@ -172,11 +173,13 @@ function App() {
       const usersData = await read(1);
       const telemetryData = await read(2);
       const statsData = await read(3);
+      const workoutsData = await read(4);
 
       if (logsData) setLogs(logsData);
       if (usersData) setUsers(usersData);
       if (telemetryData) setTelemetry(telemetryData);
       if (statsData) setStats(statsData);
+      if (workoutsData) setWorkouts(workoutsData);
     } catch (error) {
       console.error('Sync Error:', error);
     }
@@ -669,13 +672,42 @@ function App() {
                              }} />
                              
                              <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6">
-                               <h3 className="text-xl font-black text-white uppercase tracking-tight">Recent Sessions</h3>
-                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                 <div className="glass-panel p-6 bg-white/[0.02] border-white/5 rounded-3xl text-center">
-                                    <p className="text-slate-500 font-bold text-xs uppercase">No sessions logged yet.</p>
-                                 </div>
-                               </div>
-                             </div>
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Recent Sessions</h3>
+                                  <button onClick={fetchData} className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-400">Refresh Data</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                  {workouts.length > 0 ? (
+                                    workouts.map((session) => (
+                                      <div key={session.id} className="glass-panel p-6 bg-white/[0.02] border-white/10 rounded-3xl flex flex-col gap-4 group hover:bg-blue-600/5 transition-all">
+                                        <div className="flex items-start justify-between">
+                                          <div>
+                                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">{session.exercise}</div>
+                                            <div className="text-xl font-black text-white tracking-tight">{session.member_name}</div>
+                                          </div>
+                                          <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black ${session.accuracy > 80 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                            {session.accuracy}% ACC
+                                          </div>
+                                        </div>
+                                        <div className="flex items-end justify-between mt-2">
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] text-slate-500 font-black uppercase">REPS</span>
+                                            <span className="text-3xl font-black text-white tabular-nums">{session.reps}</span>
+                                          </div>
+                                          <div className="text-[9px] text-slate-600 font-bold uppercase">
+                                            {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="col-span-full py-12 text-center">
+                                      <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">No sessions logged yet.</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
                            </div>
                          ) : activeTab === 'registry' ? (
                           <div className="w-full h-full text-left p-4">

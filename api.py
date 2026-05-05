@@ -454,6 +454,31 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
         "gym_name": owner.gym_name
     }
 
+@app.get("/api/workouts")
+async def get_workouts(owner_id: int, db: AsyncSession = Depends(get_db)):
+    from models import WorkoutSession, RegisteredFace
+    # Join with RegisteredFace to get member names
+    query = (
+        select(WorkoutSession, RegisteredFace.name)
+        .join(RegisteredFace, WorkoutSession.member_id == RegisteredFace.id)
+        .where(WorkoutSession.owner_id == owner_id)
+        .order_by(WorkoutSession.timestamp.desc())
+        .limit(20)
+    )
+    result = await db.execute(query)
+    sessions = []
+    for row in result.all():
+        session, name = row
+        sessions.append({
+            "id": session.id,
+            "member_name": name,
+            "exercise": session.exercise_name,
+            "reps": session.reps,
+            "accuracy": session.avg_accuracy,
+            "timestamp": session.timestamp
+        })
+    return sessions
+
 @app.post("/api/workouts/save")
 async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(get_db)):
     new_session = WorkoutSession(
