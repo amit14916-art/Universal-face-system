@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pose } from '@mediapipe/pose';
-import * as cam from '@mediapipe/camera_utils';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { POSE_CONNECTIONS } from '@mediapipe/pose';
-import { AlertCircle, CheckCircle2, Play, Square, Activity } from 'lucide-react';
+import * as mpPose from '@mediapipe/pose';
+import * as mpDrawing from '@mediapipe/drawing_utils';
+import * as mpCamera from '@mediapipe/camera_utils';
+import { AlertCircle, CheckCircle2, Play, Square, Activity, Info, Camera as LucideCamera } from 'lucide-react';
+
+const { Pose, POSE_CONNECTIONS } = mpPose;
+const { drawConnectors, drawLandmarks } = mpDrawing;
+const { Camera } = mpCamera;
 
 const WorkoutFormAI = ({ onSessionEnd }) => {
   const videoRef = useRef(null);
@@ -149,7 +152,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
 
     let camera = null;
     if (isActive && videoRef.current) {
-      camera = new cam.Camera(videoRef.current, {
+      camera = new Camera(videoRef.current, {
         onFrame: async () => {
           await pose.send({ image: videoRef.current });
         },
@@ -223,7 +226,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm z-10">
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                  <Camera className="text-blue-500" size={32} />
+                  <LucideCamera className="text-blue-500" size={32} />
                 </div>
                 <p className="text-slate-300 font-bold uppercase tracking-widest text-xs">Ready to start {exercise}?</p>
               </div>
