@@ -91,6 +91,40 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         setStage('down');
         currentFeedback = 'Great depth';
       }
+    } else if (exercise === 'Deadlift') {
+      const shoulder = landmarks[12];
+      const hip = landmarks[24];
+      const knee = landmarks[26];
+      const ankle = landmarks[28];
+      
+      const hipAngle = calculateAngle(shoulder, hip, knee);
+      const kneeAngle = calculateAngle(hip, knee, ankle);
+
+      if (hipAngle > 160 && kneeAngle > 160) {
+        if (stage === 'down') { setCounter(c => c + 1); setStage('up'); }
+        currentFeedback = 'Stand tall';
+      } else if (hipAngle < 100) {
+        setStage('down');
+        currentFeedback = 'Keep back flat';
+      }
+      
+      // Form: rounding back
+      const backAngle = calculateAngle(shoulder, hip, { x: hip.x, y: 0 });
+      if (backAngle > 45 && stage === 'down') { currentFeedback = 'Lower your hips more!'; currentAcc -= 20; }
+
+    } else if (exercise === 'Bicep Curls') {
+      const shoulder = landmarks[12];
+      const elbow = landmarks[14];
+      const wrist = landmarks[16];
+      const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+
+      if (elbowAngle > 150) {
+        if (stage === 'up') { setCounter(c => c + 1); setStage('down'); }
+        currentFeedback = 'Full extension';
+      } else if (elbowAngle < 40) {
+        setStage('up');
+        currentFeedback = 'Squeeze at top';
+      }
     }
 
     setFeedback(currentFeedback);
@@ -158,7 +192,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         </div>
 
         <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-2xl border border-white/10">
-          {['Squats', 'Pushups', 'Lunges'].map(ex => (
+          {['Squats', 'Pushups', 'Lunges', 'Deadlift', 'Bicep Curls'].map(ex => (
             <button
               key={ex}
               disabled={isActive}
@@ -250,6 +284,18 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
                 <>
                   <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> 90 deg bend in both knees</li>
                   <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep upper body vertical</li>
+                </>
+              )}
+              {exercise === 'Deadlift' && (
+                <>
+                  <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep back flat, not rounded</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Drive through your heels</li>
+                </>
+              )}
+              {exercise === 'Bicep Curls' && (
+                <>
+                  <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep elbows tucked to sides</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Full extension at bottom</li>
                 </>
               )}
             </ul>
