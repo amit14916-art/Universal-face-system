@@ -64,6 +64,7 @@ async def migrate():
         await run_step("ALTER TABLE gym_owners ADD COLUMN telegram_chat_id VARCHAR", "telegram_chat_id in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN gmail_enabled BOOLEAN DEFAULT FALSE", "gmail_enabled in gym_owners")
         await run_step("ALTER TABLE gym_owners ADD COLUMN alert_email VARCHAR", "alert_email in gym_owners")
+        await run_step("ALTER TABLE gym_owners ADD COLUMN last_ip VARCHAR", "last_ip in gym_owners")
 
     print("Migration complete.")
     await engine.dispose()

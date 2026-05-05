@@ -359,7 +359,7 @@ async def get_node_settings(owner_id: int):
 # WhatsApp Integration decommissioned
 
 @app.post("/api/auth/signup")
-async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
+async def signup(request: SignupRequest, req: Request, db: AsyncSession = Depends(get_db)):
     # Check if user already exists
     result = await db.execute(select(GymOwner).where(GymOwner.email == request.email))
     if result.scalars().first():
@@ -369,7 +369,8 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
         gym_name=request.gym_name,
         email=request.email,
         mobile=request.mobile,
-        password=request.password
+        password=request.password,
+        last_ip=req.headers.get("x-forwarded-for") or req.client.host
     )
     db.add(new_owner)
     await db.commit()
@@ -447,7 +448,11 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
     }
 
 @app.get("/api/admin/owners")
-async def get_all_owners(db: AsyncSession = Depends(get_db)):
+async def get_all_owners(admin_pass: str = None, db: AsyncSession = Depends(get_db)):
+    secret = os.getenv("ADMIN_PASSWORD", "admin123")
+    if admin_pass != secret:
+        raise HTTPException(status_code=401, detail="Unauthorized access")
+
     result = await db.execute(select(GymOwner).order_by(GymOwner.id.desc()))
     owners = result.scalars().all()
     out = []
@@ -457,7 +462,8 @@ async def get_all_owners(db: AsyncSession = Depends(get_db)):
             "gym_name": o.gym_name,
             "email": o.email,
             "mobile": o.mobile,
-            "created_at": o.created_at if hasattr(o, 'created_at') else None
+            "created_at": o.created_at if hasattr(o, 'created_at') else None,
+            "last_ip": o.last_ip if hasattr(o, 'last_ip') else "N/A"
         })
     return out
 

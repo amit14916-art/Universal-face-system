@@ -50,6 +50,7 @@ class GymOwner(Base):
     notify_on_entry = Column(Boolean, default=True)
     notify_on_expiry = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
+    last_ip = Column(String, nullable=True)
 
 class CameraNode(Base):
     __tablename__ = "camera_nodes"
