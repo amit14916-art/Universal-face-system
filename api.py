@@ -457,10 +457,10 @@ async def login(request: AuthRequest, db: AsyncSession = Depends(get_db)):
 @app.get("/api/workouts")
 async def get_workouts(owner_id: int, db: AsyncSession = Depends(get_db)):
     from models import WorkoutSession, RegisteredFace
-    # Join with RegisteredFace to get member names
+    # Use outerjoin so guest sessions (unregistered IDs) still show up
     query = (
         select(WorkoutSession, RegisteredFace.name)
-        .join(RegisteredFace, WorkoutSession.member_id == RegisteredFace.id)
+        .outerjoin(RegisteredFace, WorkoutSession.member_id == RegisteredFace.id)
         .where(WorkoutSession.owner_id == owner_id)
         .order_by(WorkoutSession.timestamp.desc())
         .limit(20)
@@ -471,7 +471,7 @@ async def get_workouts(owner_id: int, db: AsyncSession = Depends(get_db)):
         session, name = row
         sessions.append({
             "id": session.id,
-            "member_name": name,
+            "member_name": name if name else "Guest Member",
             "exercise": session.exercise_name,
             "reps": session.reps,
             "accuracy": session.avg_accuracy,
