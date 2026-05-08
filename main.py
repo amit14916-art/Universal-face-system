@@ -32,14 +32,55 @@ except ImportError:
     DEEPSORT_AVAILABLE = False
     print("WARNING: DeepSort not found. Make sure you run via the Python 3.11 Virtual Environment (setup_enterprise.ps1)")
 
+# Fallback simple centroid tracker when DeepSort unavailable
+class SimpleCentroidTracker:
+    """Fallback tracker using centroid matching"""
+    def __init__(self, max_disappeared=30):
+        self.next_object_id = 0
+        self.objects = {}
+        self.disappeared = {}
+        self.max_disappeared = max_disappeared
+    
+    def register(self, centroid):
+        self.objects[self.next_object_id] = centroid
+        self.disappeared[self.next_object_id] = 0
+        self.next_object_id += 1
+    
+    def deregister(self, object_id):
+        del self.objects[object_id]
+        del self.disappeared[object_id]
+    
+    def update(self, rects):
+        """Update tracker with detected rectangles"""
+        if len(rects) == 0:
+            for object_id in list(self.disappeared.keys()):
+                self.disappeared[object_id] += 1
+                if self.disappeared[object_id] > self.max_disappeared:
+                    self.deregister(object_id)
+            return self.objects.copy()
+        
+        # Calculate centroids
+        input_centroids = []
+        for (startX, startY, endX, endY) in rects:
+            cX = (startX + endX) // 2
+            cY = (startY + endY) // 2
+            input_centroids.append((cX, cY))
+        
+        if len(self.objects) == 0:
+            for i in range(0, len(input_centroids)):
+                self.register(input_centroids[i])
+        
+        return self.objects.copy()
+
 # --- Tunables (env overrides for deployment) ---
 JOB_QUEUE_MAXSIZE = int(os.environ.get("SENTINEL_JOB_QUEUE_MAX", "100"))
+JOB_QUEUE_TIMEOUT = float(os.environ.get("SENTINEL_JOB_QUEUE_TIMEOUT", "0.5"))  # NEW: timeout for back-pressure
 STREAM_CONNECT_RETRIES = int(os.environ.get("SENTINEL_STREAM_RETRIES", "10"))
 STREAM_RETRY_DELAY_SEC = float(os.environ.get("SENTINEL_STREAM_RETRY_DELAY", "3"))
 FAILED_READ_THRESHOLD = int(os.environ.get("SENTINEL_FAILED_READS", "50"))
 READ_FAIL_SLEEP_SEC = float(os.environ.get("SENTINEL_READ_FAIL_SLEEP", "0.1"))
 RECONNECT_SLEEP_SEC = float(os.environ.get("SENTINEL_RECONNECT_SLEEP", "2"))
-ASYNC_OP_TIMEOUT_SEC = float(os.environ.get("SENTINEL_ASYNC_TIMEOUT", "120"))
+ASYNC_OP_TIMEOUT_SEC = float(os.environ.get("SENTINEL_ASYNC_TIMEOUT", "30"))  # Reduced from 120 for better responsiveness
 NODE_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_NODE_JOIN_TIMEOUT", "8"))
 WORKER_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_WORKER_JOIN_TIMEOUT", "30"))
 LOOP_THREAD_JOIN_TIMEOUT = float(os.environ.get("SENTINEL_LOOP_JOIN_TIMEOUT", "5"))
@@ -85,9 +126,10 @@ class SentinelNode:
         self.tracker = (
             DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
             if DEEPSORT_AVAILABLE
-            else None
+            else SimpleCentroidTracker()  # Fallback if DeepSort not available
         )
         self.cap = None
+        self._frame_lock = threading.RLock()  # NEW: Thread lock for frame access
         self.last_frame = None # Store the latest processed frame for streaming
         self.fps = 0
         self.active_tracks = 0
@@ -240,7 +282,7 @@ class SentinelNode:
                 with _identity_lock:
                     name = track_identities.get(node_track_id, "Scanning...")
                 
-                if name in ["Scanning...", "Blink to Verify", "Wait...", "Blurry...", "Aligning..."] and not shared_job_queue.full():
+                if name in ["Scanning...", "Blink to Verify", "Wait...", "Blurry...", "Aligning..."]:
                     margin_w = int((r - l) * 0.2)
                     margin_h = int((b - t) * 0.2)
                     ml, mt = max(0, l - margin_w), max(0, t - margin_h)
@@ -250,9 +292,25 @@ class SentinelNode:
                     if crop.size > 0:
                         with _identity_lock:
                             track_identities[node_track_id] = "Detecting..."
-                        shared_job_queue.put(
-                            (node_track_id, crop, (ml, mt, mr - ml, mb - mt), (h, w), self.name, self.owner_id)
-                        )
+                        
+                        # NEW: Add job with back-pressure (timeout if queue full)
+                        try:
+                            shared_job_queue.put(
+                                (node_track_id, crop, (ml, mt, mr - ml, mb - mt), (h, w), self.name, self.owner_id),
+                                timeout=JOB_QUEUE_TIMEOUT
+                            )
+                        except queue.Full:
+                            log_print(f"[{self.name}] Job queue full, dropping frame to maintain stream FPS")
+                            # Try to drop oldest job and add new one
+                            try:
+                                old_job = shared_job_queue.get_nowait()
+                                log_print(f"[{self.name}] Dropped track {old_job[0]} to make room")
+                                shared_job_queue.put(
+                                    (node_track_id, crop, (ml, mt, mr - ml, mb - mt), (h, w), self.name, self.owner_id),
+                                    block=False
+                                )
+                            except (queue.Empty, queue.Full):
+                                pass  # Queue handling race condition
                 
                 # Visuals
                 color = (0, 60, 255) if "Visitor" in name or "BLACKLIST" in name else (0, 220, 80)
@@ -273,7 +331,8 @@ class SentinelNode:
                 cv2.putText(frame, f"{node_track_id}: {name}", (l + 5, b + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
             # Update FPS and Last Frame
-            self.last_frame = frame.copy()
+            with self._frame_lock:  # Acquire lock before writing
+                self.last_frame = frame.copy()
             elapsed = time.time() - start_time
             if elapsed > 1:
                 self.fps = frame_count / elapsed

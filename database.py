@@ -27,6 +27,11 @@ print(f"DEBUG: Initializing database with {'PostgreSQL' if 'postgres' in DATABAS
 Base = declarative_base()
 
 # Configure engine automatically based on environment
+# Use environment-based sizing for production scaling
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
+POOL_OVERFLOW = int(os.getenv("DB_POOL_OVERFLOW", "10"))
+POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+
 connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args["check_same_thread"] = False
@@ -39,9 +44,10 @@ engine = create_async_engine(
     echo=False,
     connect_args=connect_args,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=5,
-    pool_recycle=60
+    pool_size=POOL_SIZE,
+    max_overflow=POOL_OVERFLOW,
+    pool_timeout=POOL_TIMEOUT,
+    pool_recycle=300  # Increased from 60 to 300 seconds
 )
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

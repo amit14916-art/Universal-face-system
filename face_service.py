@@ -189,14 +189,23 @@ async def process_tracker_crop(
     
     # 2. PURE CLOUD SEARCH (Re-ID Logic)
     async with AsyncSessionLocalBG() as session:
-        query = select(RegisteredFace).where(
-            RegisteredFace.owner_id == owner_id,
-            RegisteredFace.face_encoding.l2_distance(embedding) < 1.40,
-            RegisteredFace.is_active == True
-        ).order_by(RegisteredFace.face_encoding.l2_distance(embedding)).limit(1)
-        
-        result = await session.execute(query)
-        p = result.scalars().first()
+        try:
+            async with asyncio.timeout(30):  # NEW: Add timeout to prevent hanging
+                query = select(RegisteredFace).where(
+                    RegisteredFace.owner_id == owner_id,
+                    RegisteredFace.is_active == True,           # Enables partial index
+                    RegisteredFace.is_blacklisted == False,    # Enables partial index
+                    RegisteredFace.face_encoding.l2_distance(embedding) < 1.40,
+                ).order_by(RegisteredFace.face_encoding.l2_distance(embedding)).limit(1)
+                
+                result = await session.execute(query)
+                p = result.scalars().first()
+        except asyncio.TimeoutError:
+            logger.error(f"pgvector search timeout for owner {owner_id}")
+            return None, "Search Timeout"
+        except Exception as e:
+            logger.error(f"Database error in face search: {e}", exc_info=True)
+            return None, "Database Error"
         
         if not hasattr(process_tracker_crop, "local_cache"):
             process_tracker_crop.local_cache = {}
