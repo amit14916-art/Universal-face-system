@@ -592,7 +592,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             <p className="text-slate-600 text-[10px] mt-2">Based on last {allAccuracies.length} frames</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Height</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
@@ -603,6 +603,12 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Weight</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
                 {biometrics.weight || '--'} <span className="text-xs text-slate-500">kg</span>
+              </div>
+            </div>
+            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Body Fat</span>
+              <div className="text-3xl font-black text-white mt-2 tabular-nums">
+                {biometrics.body_fat || '--'} <span className="text-xs text-slate-500">%</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
