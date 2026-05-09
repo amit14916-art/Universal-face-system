@@ -65,6 +65,15 @@ function App() {
   const [gymName, setGymName] = useState('');
   const [ownerId, setOwnerId] = useState(localStorage.getItem('owner_id') || null);
   const [currentGymName, setCurrentGymName] = useState(localStorage.getItem('gym_name') || '');
+  const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token') || null);
+
+  // Helper: fetch with Bearer token injected automatically
+  const authFetch = (url, options = {}) => {
+    const token = authToken || localStorage.getItem('auth_token');
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers });
+  };
   const [stats, setStats] = useState(null);
   const [gmailAlertEnabled, setGmailAlertEnabled] = useState(false);
   const [alertEmail, setAlertEmail] = useState('');
@@ -149,11 +158,11 @@ function App() {
       const baseUrl = API_BASE;
       const cacheBuster = `?t=${Date.now()}&owner_id=${ownerId}`;
       const reqs = [
-        fetch(`${baseUrl}/api/logs${cacheBuster}`),
-        fetch(`${baseUrl}/api/users${cacheBuster}`),
+        authFetch(`${baseUrl}/api/logs${cacheBuster}`),
+        authFetch(`${baseUrl}/api/users${cacheBuster}`),
         fetch(`${baseUrl}/api/telemetry${cacheBuster}`),
-        fetch(`${baseUrl}/api/stats${cacheBuster}`),
-        fetch(`${baseUrl}/api/workouts${cacheBuster}`),
+        authFetch(`${baseUrl}/api/stats${cacheBuster}`),
+        authFetch(`${baseUrl}/api/workouts${cacheBuster}`),
       ];
       const settled = await Promise.allSettled(reqs);
 
@@ -302,11 +311,10 @@ function App() {
   const saveNotificationSettings = async () => {
     setIsSavingSettings(true);
     try {
-      await fetch(`${API_BASE}/api/settings/notifications`, {
+      await authFetch(`${API_BASE}/api/settings/notifications`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          owner_id: ownerId,
+          owner_id: parseInt(ownerId),
           gmail_enabled: gmailAlertEnabled,
           alert_email: alertEmail,
           notify_on_entry: notifyOnEntry,
@@ -320,7 +328,7 @@ function App() {
 
   const deleteUser = async (id) => {
     if (confirm("Permanently delete this biometric profile?")) {
-      await fetch(`${API_BASE}/api/users/${id}`, { method: 'DELETE' });
+      await authFetch(`${API_BASE}/api/users/${id}`, { method: 'DELETE' });
       fetchData();
     }
   };
@@ -367,9 +375,8 @@ function App() {
       
       if (!frameData) return alert("Failed to capture image");
 
-      const res = await fetch(`${API_BASE}/api/register`, {
+      const res = await authFetch(`${API_BASE}/api/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           owner_id: parseInt(ownerId),
           name: regName,
@@ -413,8 +420,10 @@ function App() {
       if (res.ok) {
         setOwnerId(String(data.owner_id));
         setCurrentGymName(data.gym_name);
+        setAuthToken(data.access_token);
         localStorage.setItem('owner_id', String(data.owner_id));
         localStorage.setItem('gym_name', data.gym_name);
+        localStorage.setItem('auth_token', data.access_token);
         setPassword('');
         setIsLoggedIn(true);
       } else {
@@ -463,9 +472,8 @@ function App() {
   const handleUpdateProfile = async () => {
     if (!editingUser) return;
     try {
-      await fetch(`${API_BASE}/api/users/${editingUser.id}/update`, {
+      await authFetch(`${API_BASE}/api/users/${editingUser.id}/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName, role: newRole, subscription_expiry: newExpiry }),
       });
       fetchData();
@@ -480,9 +488,8 @@ function App() {
     if (!finalUrl) return alert("Please enter a valid IP Address or Stream Link");
     
     try {
-      const res = await fetch(`${API_BASE}/api/nodes/add`, {
+      const res = await authFetch(`${API_BASE}/api/nodes/add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: cameraName || "Gym_Camera",
           url: finalUrl,
@@ -512,7 +519,7 @@ function App() {
   const handleDeleteNode = async (nodeName) => {
     if (!confirm(`Delete ${nodeName}?`)) return;
     try {
-      await fetch(`${API_BASE}/api/nodes/${nodeName}?owner_id=${ownerId}`, { method: 'DELETE' });
+      await authFetch(`${API_BASE}/api/nodes/${nodeName}?owner_id=${ownerId}`, { method: 'DELETE' });
       fetchSettings();
     } catch (e) { alert("Failed to delete node."); }
   };
@@ -590,7 +597,7 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => openWebcam('local')} className="py-2.5 px-6 rounded-xl flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500 font-black text-[11px] uppercase tracking-wider transition-all shadow-xl active:scale-95 shrink-0"><Camera size={14} /> Master Enroll</button>
-            <button type="button" onClick={() => { localStorage.removeItem('owner_id'); localStorage.removeItem('gym_name'); setOwnerId(null); setIsLoggedIn(false); setDashboardReady(true); }} className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0" title="Sign out"><LogOut size={16} /></button>
+            <button type="button" onClick={() => { localStorage.removeItem('owner_id'); localStorage.removeItem('gym_name'); localStorage.removeItem('auth_token'); setOwnerId(null); setAuthToken(null); setIsLoggedIn(false); setDashboardReady(true); }} className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-slate-500 hover:text-red-500 transition-all shrink-0" title="Sign out"><LogOut size={16} /></button>
           </div>
         </nav>
 
@@ -653,11 +660,10 @@ function App() {
                                const memberId = lastRecognition?.id || 1; 
                                setIsSavingWorkout(true);
                                try {
-                                 await fetch(`${API_BASE}/api/workouts/save`, {
+                                 await authFetch(`${API_BASE}/api/workouts/save`, {
                                    method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
                                    body: JSON.stringify({
-                                     owner_id: ownerId,
+                                     owner_id: parseInt(ownerId),
                                      member_id: memberId,
                                      exercise_name: data.exercise,
                                      reps: data.reps,
