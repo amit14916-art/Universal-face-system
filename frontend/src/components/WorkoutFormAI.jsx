@@ -418,17 +418,22 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
                 estWeight = Math.round((hM * hM) * (shW * 150) + (vRatio * 20));
                 estBF = Math.round(vRatio * 30);
             }
+            }
         } else {
-            // Partial visibility - can't estimate height accurately
-            estHeight = 0;
-            estWeight = 0;
-            if (feedback === 'Good form ✓') {
-                currentFeedback = '⚠ Stand back for full body metrics';
+            // Upper Body Fallback: Estimate from shoulder width and head size
+            const shL = lm[11], shR = lm[12];
+            if (shL && shR && shL.visibility > 0.6) {
+                const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
+                // Assuming average shoulder width is 40cm
+                const headToSh = Math.abs(shL.y - nose.y);
+                estHeight = Math.round((headToSh * 10) * 170); // Very rough guess
+                if (estHeight > 220) estHeight = 175; // Clamp
+                if (estHeight < 140) estHeight = 160; 
+                
+                estWeight = Math.round(shW * 500); // Rough guess
+                estBF = 18; // Default
             }
         }
-    } else {
-        estHeight = 0;
-        estWeight = 0;
     }
 
     setBiometrics({
@@ -665,6 +670,11 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep elbows tucked to sides</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Full extension at bottom</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Rep counts on the way DOWN</li>
+              </>)}
+              {(exercise === 'Standing' || exercise === 'Detecting...') && (<>
+                <li className="flex items-start gap-3"><Info size={14} className="text-blue-400 shrink-0" /> Stand 6-8 feet back for best accuracy</li>
+                <li className="flex items-start gap-3"><Info size={14} className="text-blue-400 shrink-0" /> Ensure your full body is in frame</li>
+                <li className="flex items-start gap-3"><Info size={14} className="text-blue-400 shrink-0" /> AI will auto-detect your exercise</li>
               </>)}
             </ul>
           </div>
