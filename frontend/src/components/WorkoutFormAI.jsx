@@ -64,6 +64,9 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   const rppgBufferRef = useRef([]);
   const rppgTimesRef  = useRef([]);
   const lastBpmUpdateRef = useRef(0);
+  
+  // Exercise Detection Smoothing
+  const exHistoryRef = useRef([]);
 
   // Initialization Check (must be before any hook calls)
   if (!Pose || !Camera) {
@@ -121,18 +124,27 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     const elbowAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 13 : 14], lm[side === 'left' ? 15 : 16]);
     const hipAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26]);
 
-    let detectedExercise = 'Detecting...';
-    if (kneeAngle !== null && kneeAngle < 120) detectedExercise = 'Squats';
-    else if (elbowAngle !== null && elbowAngle < 100) detectedExercise = 'Bicep Curls';
-    else if (hipAngle !== null && hipAngle < 110) detectedExercise = 'Lunges';
-    else if (elbowAngle !== null && elbowAngle < 120 && hipAngle !== null && hipAngle > 150) detectedExercise = 'Pushups';
-    else detectedExercise = 'Standing';
+    let detectedExercise = 'Standing';
+    if (kneeAngle !== null && kneeAngle < 110) detectedExercise = 'Squats';
+    else if (elbowAngle !== null && elbowAngle < 90) detectedExercise = 'Bicep Curls';
+    else if (hipAngle !== null && hipAngle < 100) detectedExercise = 'Lunges';
+    else if (elbowAngle !== null && elbowAngle < 110 && hipAngle !== null && hipAngle > 160) detectedExercise = 'Pushups';
 
-    if (detectedExercise !== 'Detecting...' && detectedExercise !== 'Standing' && detectedExercise !== exerciseRef.current) {
-        setExercise(detectedExercise);
-        exerciseRef.current = detectedExercise;
-        setCounter(0); // Reset counter when exercise changes
-        stageRef.current = detectedExercise === 'Bicep Curls' ? 'down' : 'up';
+    // Majority Vote over last 20 frames
+    exHistoryRef.current.push(detectedExercise);
+    if (exHistoryRef.current.length > 20) exHistoryRef.current.shift();
+    
+    const counts = exHistoryRef.current.reduce((acc, val) => { acc[val] = (acc[val] || 0) + 1; return acc; }, {});
+    const mostFrequent = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+
+    if (mostFrequent !== 'Standing' && mostFrequent !== exerciseRef.current) {
+        setExercise(mostFrequent);
+        exerciseRef.current = mostFrequent;
+        setCounter(0); 
+        stageRef.current = mostFrequent === 'Bicep Curls' ? 'down' : 'up';
+    } else if (mostFrequent === 'Standing' && exerciseRef.current === 'Detecting...') {
+        setExercise('Standing');
+        exerciseRef.current = 'Standing';
     }
 
     // Draw skeleton
@@ -580,11 +592,17 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             <p className="text-slate-600 text-[10px] mt-2">Based on last {allAccuracies.length} frames</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Height</span>
+              <div className="text-3xl font-black text-white mt-2 tabular-nums">
+                {biometrics.height || '--'} <span className="text-xs text-slate-500">cm</span>
+              </div>
+            </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Weight</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
-                {biometrics.weight} <span className="text-xs text-slate-500">kg</span>
+                {biometrics.weight || '--'} <span className="text-xs text-slate-500">kg</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
