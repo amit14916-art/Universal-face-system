@@ -18,6 +18,8 @@ class RegisteredFace(Base):
     is_blacklisted = Column(Boolean, default=False)
     subscription_expiry = Column(DateTime, nullable=True) # Date when membership ends
     plan_type = Column(String, default="monthly") # e.g., monthly, yearly, vip
+    height = Column(Integer, nullable=True) # in cm
+    body_fat = Column(Integer, nullable=True) # in percentage
     notes = Column(String, nullable=True)
 
 class AttendanceLog(Base):
@@ -79,5 +81,7 @@ class WorkoutSession(Base):
     reps = Column(Integer, default=0)
     sets = Column(Integer, default=0)
     avg_accuracy = Column(Integer, default=0) # 0-100
+    height = Column(Integer, nullable=True)
+    body_fat = Column(Integer, nullable=True)
     notes = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.now)

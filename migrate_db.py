@@ -47,6 +47,8 @@ async def migrate():
         await run_step("ALTER TABLE registered_faces ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)", "owner_id in registered_faces")
         await run_step("ALTER TABLE registered_faces ADD COLUMN subscription_expiry TIMESTAMP", "subscription_expiry in registered_faces")
         await run_step("ALTER TABLE registered_faces ADD COLUMN plan_type VARCHAR DEFAULT 'monthly'", "plan_type in registered_faces")
+        await run_step("ALTER TABLE registered_faces ADD COLUMN height INTEGER", "height in registered_faces")
+        await run_step("ALTER TABLE registered_faces ADD COLUMN body_fat INTEGER", "body_fat in registered_faces")
 
         # 3. Attendance Columns
         await run_step("ALTER TABLE attendance_logs ADD COLUMN owner_id INTEGER REFERENCES gym_owners(id)", "owner_id in attendance_logs")
@@ -76,6 +78,8 @@ async def migrate():
                 reps INTEGER DEFAULT 0,
                 sets INTEGER DEFAULT 0,
                 avg_accuracy INTEGER DEFAULT 0,
+                height INTEGER,
+                body_fat INTEGER,
                 notes VARCHAR,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

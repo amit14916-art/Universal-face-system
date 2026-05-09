@@ -105,8 +105,26 @@ const StreamGrid = ({ telemetry, onSnapshot, savedCameraCount = 0 }) => {
             )}
 
             {isOnline && !broken && (
-              <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
-                 <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 flex items-center gap-4">
+              <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-2 pointer-events-none">
+                 {/* Workout Analytics Overlay */}
+                 {node.workout && node.workout.exercise && (
+                   <div className="flex flex-wrap gap-2 animate-in slide-in-from-bottom-2">
+                      <div className="bg-blue-600/90 backdrop-blur-md px-3 py-2 rounded-xl border border-blue-400/30 flex flex-col gap-0.5 shadow-xl">
+                        <span className="text-[7px] font-black text-blue-100 uppercase tracking-widest">Exercise</span>
+                        <span className="text-[11px] font-black text-white uppercase">{node.workout.exercise}</span>
+                      </div>
+                      <div className="bg-emerald-600/90 backdrop-blur-md px-3 py-2 rounded-xl border border-emerald-400/30 flex flex-col gap-0.5 shadow-xl">
+                        <span className="text-[7px] font-black text-emerald-100 uppercase tracking-widest">Reps</span>
+                        <span className="text-[11px] font-black text-white tabular-nums">{node.workout.reps}</span>
+                      </div>
+                      <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 flex flex-col gap-0.5 shadow-xl">
+                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Metrics</span>
+                        <span className="text-[9px] font-black text-white uppercase">{node.workout.height}cm | {node.workout.body_fat}% BF</span>
+                      </div>
+                   </div>
+                 )}
+
+                 <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 pointer-events-auto">
                     <div className="flex items-center gap-2">
                        <Activity size={12} className="text-blue-500" />
                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{node.active_tracks} Active Tracks</span>

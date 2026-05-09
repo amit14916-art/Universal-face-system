@@ -697,9 +697,21 @@ function App() {
                                           </div>
                                         </div>
                                         <div className="flex items-end justify-between mt-2">
-                                          <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-500 font-black uppercase">REPS</span>
-                                            <span className="text-3xl font-black text-white tabular-nums">{session.reps}</span>
+                                          <div className="flex gap-6">
+                                            <div className="flex flex-col">
+                                              <span className="text-[10px] text-slate-500 font-black uppercase">REPS</span>
+                                              <span className="text-3xl font-black text-white tabular-nums">{session.reps}</span>
+                                            </div>
+                                            {(session.height || session.body_fat) && (
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] text-slate-500 font-black uppercase">PROFILE</span>
+                                                <span className="text-[10px] font-black text-slate-300 uppercase leading-tight">
+                                                  {session.height ? `${session.height}cm` : ''}
+                                                  {session.height && session.body_fat ? ' | ' : ''}
+                                                  {session.body_fat ? `${session.body_fat}% BF` : ''}
+                                                </span>
+                                              </div>
+                                            )}
                                           </div>
                                           <div className="text-[9px] text-slate-600 font-bold uppercase">
                                             {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -23,6 +23,7 @@ def log_print(msg):
 
 from database import init_db
 import face_service
+from workout_analyzer import WorkoutAnalyzer
 
 try:
     from deep_sort_realtime.deepsort_tracker import DeepSort
@@ -133,6 +134,9 @@ class SentinelNode:
         self.last_frame = None # Store the latest processed frame for streaming
         self.fps = 0
         self.active_tracks = 0
+        self.workout_enabled = True
+        self.workout_analyzer = WorkoutAnalyzer()
+        self.latest_workout_data = {}
 
     def start(self):
         self.running = True
@@ -326,9 +330,14 @@ class SentinelNode:
                 cv2.line(frame, (r, b), (r - length, b), color, 2)
                 cv2.line(frame, (r, b), (r, b - length), color, 2)
 
-                cv2.rectangle(frame, (l, b + 5), (r, b + 30), (20, 20, 20), -1)
                 cv2.rectangle(frame, (l, b + 5), (r, b + 30), color, 1)
                 cv2.putText(frame, f"{node_track_id}: {name}", (l + 5, b + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+            # Workout Analysis
+            if self.workout_enabled:
+                frame, workout_data = self.workout_analyzer.analyze_frame(frame)
+                if workout_data:
+                    self.latest_workout_data = workout_data
 
             # Update FPS and Last Frame
             with self._frame_lock:  # Acquire lock before writing
@@ -364,7 +373,8 @@ def get_telemetry():
             "active_tracks": node.active_tracks,
             "status": node.status,
             "source": str(node.source_id),
-            "live_detections": getattr(node, 'live_detections', [])
+            "live_detections": getattr(node, 'live_detections', []),
+            "workout": getattr(node, 'latest_workout_data', {})
         } for name, node in global_nodes.items()
     }
 

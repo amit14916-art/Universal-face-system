@@ -95,6 +95,8 @@ class WorkoutSaveRequest(BaseModel):
     exercise_name: str = Field(..., min_length=1, max_length=100)
     reps: int = Field(..., ge=0)
     avg_accuracy: int = Field(..., ge=0, le=100)
+    height: int = Field(default=0, ge=0)
+    body_fat: int = Field(default=0, ge=0)
 
 class RegisterRequest(BaseModel):
     owner_id: int = Field(..., gt=0)
@@ -741,6 +743,8 @@ async def get_workouts(db: AsyncSession = Depends(get_db), owner_id: int = Depen
             "exercise": session.exercise_name,
             "reps": session.reps,
             "accuracy": session.avg_accuracy,
+            "height": session.height,
+            "body_fat": session.body_fat,
             "timestamp": session.timestamp
         })
     return sessions
@@ -750,16 +754,27 @@ async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(g
     """Save workout session for authenticated owner"""
     if request.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="Unauthorized")
+    from models import WorkoutSession, RegisteredFace
     new_session = WorkoutSession(
-        owner_id=request.owner_id,
+        owner_id=owner_id,
         member_id=request.member_id,
         exercise_name=request.exercise_name,
         reps=request.reps,
-        avg_accuracy=request.avg_accuracy
+        avg_accuracy=request.avg_accuracy,
+        height=request.height,
+        body_fat=request.body_fat
     )
     db.add(new_session)
+    
+    # Also update member profile with latest biometric data
+    result = await db.execute(select(RegisteredFace).where(RegisteredFace.id == request.member_id, RegisteredFace.owner_id == owner_id))
+    member = result.scalars().first()
+    if member:
+        if request.height > 0: member.height = request.height
+        if request.body_fat > 0: member.body_fat = request.body_fat
+
     await db.commit()
-    return {"status": "success"}
+    return {"status": "success", "message": "Workout saved and profile updated"}
 
 @app.get("/api/admin/owners")
 @limiter.limit("10/minute")  # Rate limit admin access
