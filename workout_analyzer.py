@@ -19,8 +19,16 @@ class WorkoutAnalyzer:
         self.mp_draw = mp.solutions.drawing_utils
         
         # State tracking for rep counting
-        self.exercise_state = "up"
-        self.reps = 0
+        self.exercise_states = {
+            "Squats": "up",
+            "Bicep Curls": "down",
+            "Lunges": "up"
+        }
+        self.reps = {
+            "Squats": 0,
+            "Bicep Curls": 0,
+            "Lunges": 0
+        }
         self.current_exercise = "Detecting..."
         self.confidence = 0.0
         
@@ -48,33 +56,24 @@ class WorkoutAnalyzer:
         results = self.pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         
         if not results.pose_landmarks:
-            return frame, None
+            return frame, {
+                "exercise": "Detecting...",
+                "reps": 0,
+                "height": 0,
+                "body_fat": 0
+            }
 
         landmarks = results.pose_landmarks.landmark
         
-        # Get coordinates for key joints
-        # 11: L Shoulder, 12: R Shoulder
-        # 23: L Hip, 24: R Hip
-        # 25: L Knee, 26: R Knee
-        # 27: L Ankle, 28: R Ankle
-        # 13: L Elbow, 14: R Elbow
-        # 15: L Wrist, 16: R Wrist
-        
         try:
             # 1. Height Estimation (Rough)
-            # Use distance from nose to mid-ankle as a proxy for height
             nose = landmarks[0]
             l_ankle = landmarks[27]
             r_ankle = landmarks[28]
             mid_ankle_y = (l_ankle.y + r_ankle.y) / 2
+            estimated_height = (mid_ankle_y - nose.y) * 220 
             
-            # This is relative to the frame height. 
-            # To get real height, we'd need distance from camera.
-            # We'll use a heuristic: 1.0 (top to bottom) is ~200cm
-            estimated_height = (mid_ankle_y - nose.y) * 220 # placeholder scale
-            
-            # 2. Exercise Detection
-            # Check angles to see what's moving
+            # 2. Exercise Detection & Rep Counting
             l_knee_angle = self.calculate_angle(
                 [landmarks[23].x, landmarks[23].y],
                 [landmarks[25].x, landmarks[25].y],
@@ -93,47 +92,57 @@ class WorkoutAnalyzer:
                 [landmarks[25].x, landmarks[25].y]
             )
 
-            # Auto-detect logic
-            new_exercise = "Standing"
-            if l_knee_angle < 140:
-                new_exercise = "Squatting"
-            elif l_elbow_angle < 100:
-                new_exercise = "Bicep Curls"
-            elif l_hip_angle < 100:
-                new_exercise = "Lunges"
-                
-            if new_exercise != self.current_exercise:
-                self.current_exercise = new_exercise
-                
-            # 3. Rep Counting (Squat example)
-            if self.current_exercise == "Squatting":
-                if l_knee_angle < 90 and self.exercise_state == "up":
-                    self.exercise_state = "down"
-                if l_knee_angle > 160 and self.exercise_state == "down":
-                    self.reps += 1
-                    self.exercise_state = "up"
+            # --- Logic for Each Exercise ---
             
-            # 4. Body Fat Estimation (Rough Visual)
-            # Use Waist-to-Shoulder ratio
+            # A. SQUATS
+            if l_knee_angle < 110:
+                self.current_exercise = "Squats"
+                if l_knee_angle < 90 and self.exercise_states["Squats"] == "up":
+                    self.exercise_states["Squats"] = "down"
+                if l_knee_angle > 160 and self.exercise_states["Squats"] == "down":
+                    self.reps["Squats"] += 1
+                    self.exercise_states["Squats"] = "up"
+            
+            # B. BICEP CURLS
+            elif l_elbow_angle < 100:
+                self.current_exercise = "Bicep Curls"
+                if l_elbow_angle < 40 and self.exercise_states["Bicep Curls"] == "down":
+                    self.exercise_states["Bicep Curls"] = "up"
+                if l_elbow_angle > 140 and self.exercise_states["Bicep Curls"] == "up":
+                    self.reps["Bicep Curls"] += 1
+                    self.exercise_states["Bicep Curls"] = "down"
+            
+            # C. LUNGES
+            elif l_hip_angle < 110:
+                self.current_exercise = "Lunges"
+                if l_hip_angle < 90 and self.exercise_states["Lunges"] == "up":
+                    self.exercise_states["Lunges"] = "down"
+                if l_hip_angle > 150 and self.exercise_states["Lunges"] == "down":
+                    self.reps["Lunges"] += 1
+                    self.exercise_states["Lunges"] = "up"
+            
+            else:
+                # If no clear exercise movement, but we were just doing something, keep it but don't count
+                if l_knee_angle > 160 and l_elbow_angle > 160 and l_hip_angle > 160:
+                     self.current_exercise = "Standing"
+
+            # 4. Body Fat Estimation
             shoulder_width = np.linalg.norm(np.array([landmarks[11].x, landmarks[11].y]) - np.array([landmarks[12].x, landmarks[12].y]))
             waist_width = np.linalg.norm(np.array([landmarks[23].x, landmarks[23].y]) - np.array([landmarks[24].x, landmarks[24].y]))
-            
             v_ratio = waist_width / (shoulder_width + 1e-6)
-            # Heuristic: 0.7-0.8 is athletic, 0.9+ is higher body fat
-            estimated_body_fat = v_ratio * 30 # very rough
+            estimated_body_fat = v_ratio * 30 
             
             # Draw Landmarks
             self.mp_draw.draw_landmarks(frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
             
-            # Overlay Info
-            cv2.putText(frame, f"Exercise: {self.current_exercise}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Reps: {self.reps}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Est. Height: {int(estimated_height)}cm", (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
-            cv2.putText(frame, f"Est. Body Fat: {int(estimated_body_fat)}%", (50, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+            # Overlay Info (Live on frame)
+            cv2.putText(frame, f"AI Detected: {self.current_exercise}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+            current_reps = self.reps.get(self.current_exercise, 0)
+            cv2.putText(frame, f"Reps: {current_reps}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
             analysis_data = {
                 "exercise": self.current_exercise,
-                "reps": self.reps,
+                "reps": current_reps,
                 "height": int(estimated_height),
                 "body_fat": int(estimated_body_fat)
             }
@@ -141,4 +150,10 @@ class WorkoutAnalyzer:
 
         except Exception as e:
             logger.error(f"Analysis error: {e}")
-            return frame, None
+            return frame, {
+                "exercise": "Error",
+                "reps": 0,
+                "height": 0,
+                "body_fat": 0
+            }
+

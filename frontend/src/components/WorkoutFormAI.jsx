@@ -57,8 +57,8 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   // (avoids stale-closure bug where setStage updates React state but the
   // MediaPipe callback still sees the old captured value)
   const stageRef    = useRef('up');
-  const exerciseRef = useRef('Squats');
-  const isActiveRef = useRef(false);
+  const exerciseRef = useRef('Detecting...');
+  const isActiveRef = useRef(true); // Always active by default for auto-detection
 
   // Initialization Check (must be before any hook calls)
   if (!Pose || !Camera) {
@@ -71,8 +71,8 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     );
   }
 
-  const [isActive,      setIsActive]      = useState(false);
-  const [exercise,      setExercise]      = useState('Squats');
+  const [isActive,      setIsActive]      = useState(true);
+  const [exercise,      setExercise]      = useState('Detecting...');
   const [feedback,      setFeedback]      = useState('Stand in view to begin');
   const [counter,       setCounter]       = useState(0);
   const [stage,         setStage]         = useState('up');      // display only
@@ -108,6 +108,26 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         return;
     }
     const lm = results.poseLandmarks;
+
+    // ── AUTO DETECTION ENGINE ─────────────────────────────────────────────
+    const side = getBetterSide(lm, 23, 24);
+    const kneeAngle = safeAngle(lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26], lm[side === 'left' ? 27 : 28]);
+    const elbowAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 13 : 14], lm[side === 'left' ? 15 : 16]);
+    const hipAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26]);
+
+    let detectedExercise = 'Detecting...';
+    if (kneeAngle !== null && kneeAngle < 120) detectedExercise = 'Squats';
+    else if (elbowAngle !== null && elbowAngle < 100) detectedExercise = 'Bicep Curls';
+    else if (hipAngle !== null && hipAngle < 110) detectedExercise = 'Lunges';
+    else if (elbowAngle !== null && elbowAngle < 120 && hipAngle !== null && hipAngle > 150) detectedExercise = 'Pushups';
+    else detectedExercise = 'Standing';
+
+    if (detectedExercise !== 'Detecting...' && detectedExercise !== 'Standing' && detectedExercise !== exerciseRef.current) {
+        setExercise(detectedExercise);
+        exerciseRef.current = detectedExercise;
+        setCounter(0); // Reset counter when exercise changes
+        stageRef.current = detectedExercise === 'Bicep Curls' ? 'down' : 'up';
+    }
 
     // Draw skeleton
     drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: '#3b82f6', lineWidth: 2 });
@@ -389,22 +409,12 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
           </div>
         </div>
 
-        {/* Exercise Selector */}
-        <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-2xl border border-white/10 flex-wrap">
-          {['Squats', 'Pushups', 'Lunges', 'Deadlift', 'Bicep Curls'].map(ex => (
-            <button
-              key={ex}
-              disabled={isActive}
-              onClick={() => handleExerciseChange(ex)}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
-                exercise === ex
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'text-slate-500 hover:text-white'
-              } disabled:opacity-50`}
-            >
-              {ex}
-            </button>
-          ))}
+        {/* Auto Detection Badge */}
+        <div className="flex items-center gap-3 bg-blue-600/10 px-6 py-3 rounded-2xl border border-blue-500/20">
+          <Activity className="text-blue-500 animate-pulse" size={16} />
+          <span className="text-[10px] font-black text-white uppercase tracking-widest">
+            AI Detected: <span className="text-blue-400">{exercise}</span>
+          </span>
         </div>
 
         <button
@@ -412,10 +422,10 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
           className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all ${
             isActive
               ? 'bg-red-500/20 text-red-500 border border-red-500/50'
-              : 'bg-blue-500 text-white shadow-xl shadow-blue-500/20'
+              : 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20'
           }`}
         >
-          {isActive ? <><Square size={18} /> Stop Session</> : <><Play size={18} /> Start {exercise}</>}
+          {isActive ? <><Square size={18} /> Finish Session</> : <><Play size={18} /> Resume AI Tracking</>}
         </button>
       </div>
 
