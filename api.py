@@ -122,7 +122,7 @@ class AuthRequest(BaseModel):
 class SignupRequest(BaseModel):
     gym_name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
-    mobile: str = Field(..., regex=r"^\+?[1-9]\d{1,14}$")
+    mobile: str = Field(..., pattern=r"^\+?[1-9]\d{1,14}$")
     password: str = Field(..., min_length=12)
     
     @validator('password')
@@ -749,7 +749,7 @@ async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(g
 
 @app.get("/api/admin/owners")
 @limiter.limit("10/minute")  # Rate limit admin access
-async def get_all_owners(admin_pass: str = None, db: AsyncSession = Depends(get_db)):
+async def get_all_owners(request: Request, admin_pass: str = None, db: AsyncSession = Depends(get_db)):
     # Get password from environment only
     secret = os.getenv("ADMIN_PASSWORD")
     
