@@ -58,7 +58,12 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   // MediaPipe callback still sees the old captured value)
   const stageRef    = useRef('up');
   const exerciseRef = useRef('Detecting...');
-  const isActiveRef = useRef(true); // Always active by default for auto-detection
+  const isActiveRef = useRef(true); 
+  
+  // rPPG State Refs
+  const rppgBufferRef = useRef([]);
+  const rppgTimesRef  = useRef([]);
+  const lastBpmUpdateRef = useRef(0);
 
   // Initialization Check (must be before any hook calls)
   if (!Pose || !Camera) {
@@ -324,14 +329,85 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     setFeedback(currentFeedback);
     setAccuracy(currentAcc);
     setAllAccuracies(prev => [...prev.slice(-29), currentAcc]);
+
+    // ── BIOMETRICS ENGINE (Frontend Heuristics) ───────────────────────────
+    const h = canvas.height;
+    const w = canvas.width;
     
-    // Mock biometric results for UI display (since client-side pose doesn't have the backend heuristics yet)
-    // In a real app, these would come from the AI process results
+    // 1. rPPG Heart Rate
+    let currentBpm = biometrics.heart_rate || 72;
+    const nose = lm[0];
+    if (nose && nose.visibility > 0.5) {
+        const nx = nose.x * w;
+        const ny = nose.y * h;
+        const roiSize = 20;
+        
+        // Extract ROI and get average green
+        try {
+            const imageData = ctx.getImageData(nx - roiSize, ny - roiSize, roiSize * 2, roiSize * 2);
+            const data = imageData.data;
+            let greenSum = 0;
+            for (let i = 1; i < data.length; i += 4) greenSum += data[i];
+            const avgGreen = greenSum / (data.length / 4);
+            
+            rppgBufferRef.current.push(avgGreen);
+            rppgTimesRef.current.push(Date.now());
+            
+            if (rppgBufferRef.current.length > 150) {
+                rppgBufferRef.current.shift();
+                rppgTimesRef.current.shift();
+            }
+            
+            // Update BPM every 1 second if buffer is full
+            if (rppgBufferRef.current.length >= 150 && Date.now() - lastBpmUpdateRef.current > 1000) {
+                // Simple peak counting for BPM (approximate rPPG)
+                const signal = rppgBufferRef.current;
+                const mean = signal.reduce((a, b) => a + b) / signal.length;
+                let peaks = 0;
+                for (let i = 1; i < signal.length - 1; i++) {
+                    if (signal[i] > mean && signal[i] > signal[i-1] && signal[i] > signal[i+1]) peaks++;
+                }
+                const durationSec = (rppgTimesRef.current[rppgTimesRef.current.length-1] - rppgTimesRef.current[0]) / 1000;
+                const detectedBpm = Math.round((peaks / durationSec) * 60);
+                if (detectedBpm > 45 && detectedBpm < 180) {
+                    currentBpm = Math.round(0.8 * currentBpm + 0.2 * detectedBpm);
+                }
+                lastBpmUpdateRef.current = Date.now();
+            }
+            // Draw ROI for visual feedback
+            ctx.strokeStyle = '#00c8ff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(nx - roiSize, ny - roiSize, roiSize * 2, roiSize * 2);
+        } catch(e) { /* ROI out of bounds */ }
+    }
+
+    // 2. Height & Weight
+    const lAnkle = lm[27];
+    const rAnkle = lm[28];
+    let estHeight = biometrics.height || 0;
+    let estWeight = biometrics.weight || 0;
+    let estBF = biometrics.body_fat || 0;
+
+    if (nose && lAnkle && rAnkle && nose.visibility > 0.5) {
+        const midAnkleY = (lAnkle.y + rAnkle.y) / 2;
+        estHeight = Math.round((midAnkleY - nose.y) * 220);
+        
+        const shL = lm[11], shR = lm[12], hipL = lm[23], hipR = lm[24];
+        if (shL && shR && hipL && hipR) {
+            const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
+            const hipW = Math.sqrt(Math.pow(hipL.x - hipR.x, 2) + Math.pow(hipL.y - hipR.y, 2));
+            const vRatio = hipW / (shW + 1e-6);
+            const hM = estHeight / 100;
+            estWeight = Math.round((hM * hM) * (shW * 150) + (vRatio * 20));
+            estBF = Math.round(vRatio * 30);
+        }
+    }
+
     setBiometrics({
-        height: 175, // placeholder
-        weight: 72,  // placeholder
-        body_fat: 18, // placeholder
-        heart_rate: 75 + Math.floor(Math.random() * 10) // simulated HR
+        height: estHeight,
+        weight: estWeight,
+        body_fat: estBF,
+        heart_rate: currentBpm
     });
     ctx.restore();
   }, []); // no deps — reads live data via refs
