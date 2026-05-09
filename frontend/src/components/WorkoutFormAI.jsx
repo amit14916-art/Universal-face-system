@@ -396,23 +396,39 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     // 2. Height & Weight
     const lAnkle = lm[27];
     const rAnkle = lm[28];
+    const lHip   = lm[23];
+    const rHip   = lm[24];
+    
     let estHeight = biometrics.height || 0;
     let estWeight = biometrics.weight || 0;
-    let estBF = biometrics.body_fat || 0;
+    let estBF     = biometrics.body_fat || 0;
 
-    if (nose && lAnkle && rAnkle && nose.visibility > 0.5) {
-        const midAnkleY = (lAnkle.y + rAnkle.y) / 2;
-        estHeight = Math.round((midAnkleY - nose.y) * 220);
-        
-        const shL = lm[11], shR = lm[12], hipL = lm[23], hipR = lm[24];
-        if (shL && shR && hipL && hipR) {
-            const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
-            const hipW = Math.sqrt(Math.pow(hipL.x - hipR.x, 2) + Math.pow(hipL.y - hipR.y, 2));
-            const vRatio = hipW / (shW + 1e-6);
-            const hM = estHeight / 100;
-            estWeight = Math.round((hM * hM) * (shW * 150) + (vRatio * 20));
-            estBF = Math.round(vRatio * 30);
+    // Safety Guard: Only calculate if we can see the person's full torso and legs
+    if (nose && lHip && rHip && nose.visibility > 0.6 && lHip.visibility > 0.6) {
+        if (lAnkle && rAnkle && lAnkle.visibility > 0.5) {
+            const midAnkleY = (lAnkle.y + rAnkle.y) / 2;
+            estHeight = Math.round((midAnkleY - nose.y) * 220);
+            
+            const shL = lm[11], shR = lm[12];
+            if (shL && shR && shL.visibility > 0.6) {
+                const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
+                const hipW = Math.sqrt(Math.pow(lHip.x - rHip.x, 2) + Math.pow(lHip.y - rHip.y, 2));
+                const vRatio = hipW / (shW + 1e-6);
+                const hM = estHeight / 100;
+                estWeight = Math.round((hM * hM) * (shW * 150) + (vRatio * 20));
+                estBF = Math.round(vRatio * 30);
+            }
+        } else {
+            // Partial visibility - can't estimate height accurately
+            estHeight = 0;
+            estWeight = 0;
+            if (feedback === 'Good form ✓') {
+                currentFeedback = '⚠ Stand back for full body metrics';
+            }
         }
+    } else {
+        estHeight = 0;
+        estWeight = 0;
     }
 
     setBiometrics({
@@ -596,19 +612,19 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Height</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
-                {biometrics.height || '--'} <span className="text-xs text-slate-500">cm</span>
+                {biometrics.height > 0 ? biometrics.height : '--'} <span className="text-xs text-slate-500">{biometrics.height > 0 ? 'cm' : ''}</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Weight</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
-                {biometrics.weight || '--'} <span className="text-xs text-slate-500">kg</span>
+                {biometrics.weight > 0 ? biometrics.weight : '--'} <span className="text-xs text-slate-500">{biometrics.weight > 0 ? 'kg' : ''}</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
               <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Body Fat</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
-                {biometrics.body_fat || '--'} <span className="text-xs text-slate-500">%</span>
+                {biometrics.body_fat > 0 ? biometrics.body_fat : '--'} <span className="text-xs text-slate-500">{biometrics.body_fat > 0 ? '%' : ''}</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
