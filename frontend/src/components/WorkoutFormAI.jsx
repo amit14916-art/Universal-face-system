@@ -434,7 +434,6 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
                 estBF = 18; // Default
             }
         }
-    }
 
     setBiometrics({
         height: estHeight,
