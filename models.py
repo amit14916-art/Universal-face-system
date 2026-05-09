@@ -20,6 +20,8 @@ class RegisteredFace(Base):
     plan_type = Column(String, default="monthly") # e.g., monthly, yearly, vip
     height = Column(Integer, nullable=True) # in cm
     body_fat = Column(Integer, nullable=True) # in percentage
+    weight = Column(Integer, nullable=True) # in kg
+    heart_rate = Column(Integer, nullable=True) # in BPM
     notes = Column(String, nullable=True)
 
 class AttendanceLog(Base):
@@ -83,5 +85,7 @@ class WorkoutSession(Base):
     avg_accuracy = Column(Integer, default=0) # 0-100
     height = Column(Integer, nullable=True)
     body_fat = Column(Integer, nullable=True)
+    weight = Column(Integer, nullable=True)
+    heart_rate = Column(Integer, nullable=True)
     notes = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.now)

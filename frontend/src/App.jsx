@@ -667,7 +667,11 @@ function App() {
                                      member_id: memberId,
                                      exercise_name: data.exercise,
                                      reps: data.reps,
-                                     avg_accuracy: data.accuracy
+                                     avg_accuracy: data.accuracy,
+                                     height: data.height,
+                                     body_fat: data.body_fat,
+                                     weight: data.weight,
+                                     heart_rate: data.heart_rate
                                    })
                                  });
                                  await fetchData();
@@ -707,8 +711,12 @@ function App() {
                                                 <span className="text-[10px] text-slate-500 font-black uppercase">PROFILE</span>
                                                 <span className="text-[10px] font-black text-slate-300 uppercase leading-tight">
                                                   {session.height ? `${session.height}cm` : ''}
-                                                  {session.height && session.body_fat ? ' | ' : ''}
+                                                  {session.height && session.weight ? ' | ' : ''}
+                                                  {session.weight ? `${session.weight}kg` : ''}
+                                                  {(session.height || session.weight) && session.body_fat ? ' | ' : ''}
                                                   {session.body_fat ? `${session.body_fat}% BF` : ''}
+                                                  {(session.height || session.weight || session.body_fat) && session.heart_rate ? ' | ' : ''}
+                                                  {session.heart_rate ? `${session.heart_rate} BPM` : ''}
                                                 </span>
                                               </div>
                                             )}

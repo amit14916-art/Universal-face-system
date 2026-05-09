@@ -97,6 +97,8 @@ class WorkoutSaveRequest(BaseModel):
     avg_accuracy: int = Field(..., ge=0, le=100)
     height: int = Field(default=0, ge=0)
     body_fat: int = Field(default=0, ge=0)
+    weight: int = Field(default=0, ge=0)
+    heart_rate: int = Field(default=0, ge=0)
 
 class RegisterRequest(BaseModel):
     owner_id: int = Field(..., gt=0)
@@ -745,6 +747,8 @@ async def get_workouts(db: AsyncSession = Depends(get_db), owner_id: int = Depen
             "accuracy": session.avg_accuracy,
             "height": session.height,
             "body_fat": session.body_fat,
+            "weight": session.weight,
+            "heart_rate": session.heart_rate,
             "timestamp": session.timestamp
         })
     return sessions
@@ -762,7 +766,9 @@ async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(g
         reps=request.reps,
         avg_accuracy=request.avg_accuracy,
         height=request.height,
-        body_fat=request.body_fat
+        body_fat=request.body_fat,
+        weight=request.weight,
+        heart_rate=request.heart_rate
     )
     db.add(new_session)
     
@@ -772,6 +778,8 @@ async def save_workout(request: WorkoutSaveRequest, db: AsyncSession = Depends(g
     if member:
         if request.height > 0: member.height = request.height
         if request.body_fat > 0: member.body_fat = request.body_fat
+        if request.weight > 0: member.weight = request.weight
+        if request.heart_rate > 0: member.heart_rate = request.heart_rate
 
     await db.commit()
     return {"status": "success", "message": "Workout saved and profile updated"}
