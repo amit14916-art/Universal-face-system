@@ -38,7 +38,7 @@ async def migrate():
                 gym_name VARCHAR,
                 email VARCHAR UNIQUE,
                 mobile VARCHAR UNIQUE,
-                password_hash VARCHAR,
+                password VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """, "gym_owners table")

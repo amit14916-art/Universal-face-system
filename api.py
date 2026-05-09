@@ -64,7 +64,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # === RATE LIMITING ===
-limiter = Limiter(key_func=get_remote_address)
+def get_real_ip(request: Request) -> str:
+    # Handle proxy headers for Railway/Cloud environments
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+limiter = Limiter(key_func=get_real_ip)
 
 from models import RegisteredFace, AttendanceLog, GymOwner
 import face_service
@@ -584,7 +591,7 @@ async def get_node_settings(owner_id: int):
 
 @app.post("/api/auth/signup")
 @limiter.limit("3/minute")  # Rate limit signup to 3 attempts per minute
-async def signup(request: Request, signup_request: SignupRequest, req: Request, db: AsyncSession = Depends(get_db)):
+async def signup(signup_request: SignupRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         # Check if user already exists
         result = await db.execute(select(GymOwner).where(GymOwner.email == signup_request.email))
@@ -603,23 +610,32 @@ async def signup(request: Request, signup_request: SignupRequest, req: Request, 
             email=signup_request.email,
             mobile=signup_request.mobile,
             password=hashed_password,  # Store hashed password
-            last_ip=req.headers.get("x-forwarded-for") or req.client.host
+            last_ip=request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
         )
         db.add(new_owner)
         await db.commit()
         await db.refresh(new_owner)
         
-        # Trigger Admin Notification
-        asyncio.create_task(send_admin_signup_notification(new_owner))
+        # Trigger Admin Notification safely by passing data instead of model
+        asyncio.create_task(send_admin_signup_notification(
+            gym_name=new_owner.gym_name,
+            email=new_owner.email,
+            mobile=new_owner.mobile
+        ))
         
         return {"message": "Account created successfully", "status": "success"}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Signup error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Signup failed")
+        error_msg = str(e)
+        logger.error(f"Signup error: {error_msg}", exc_info=True)
+        # Check for common database errors
+        if "unique constraint" in error_msg.lower() or "already exists" in error_msg.lower():
+            raise HTTPException(status_code=400, detail="A user with this email or mobile already exists.")
+        raise HTTPException(status_code=500, detail="Sign up failed. Please try again later.")
 
-async def send_admin_signup_notification(owner):
+async def send_admin_signup_notification(gym_name: str, email: str, mobile: str):
+    """Sends an alert to the system admin when a new gym owner signs up."""
     admin_email = os.getenv("ADMIN_EMAIL")
     if not admin_email:
         return
@@ -638,17 +654,15 @@ async def send_admin_signup_notification(owner):
         msg = MIMEMultipart()
         msg['From'] = smtp_user
         msg['To'] = admin_email
-        msg['Subject'] = f"🚀 New Gym Owner Signup: {owner.gym_name}"
+        msg['Subject'] = f"🚀 New Gym Owner Signup: {gym_name}"
 
         body = f"""
         A new gym owner has signed up on the Universal Face System!
         
-        Gym Name: {owner.gym_name}
-        Email: {owner.email}
-        Mobile: {owner.mobile}
+        Gym Name: {gym_name}
+        Email: {email}
+        Mobile: {mobile}
         Signup Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        
-        System ID: {owner.id}
         """
         msg.attach(MIMEText(body, 'plain'))
 
