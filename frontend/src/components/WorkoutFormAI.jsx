@@ -123,17 +123,41 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     const kneeAngle = safeAngle(lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26], lm[side === 'left' ? 27 : 28]);
     const elbowAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 13 : 14], lm[side === 'left' ? 15 : 16]);
     const hipAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26]);
+    const shoulderAngle = safeAngle(lm[side === 'left' ? 13 : 14], lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 23 : 24]);
+    
+    const handsAboveHead = lm[15].y < lm[0].y && lm[16].y < lm[0].y;
+    const handsAboveShoulders = lm[15].y < lm[11].y && lm[16].y < lm[12].y;
+    const isLying = Math.abs(lm[11].y - lm[23].y) < 0.15;
+    const feetApart = Math.abs(lm[27].x - lm[28].x) > 0.4;
 
     let detectedExercise = 'Standing';
-    if (kneeAngle !== null && kneeAngle < 110) detectedExercise = 'Squats';
-    else if (elbowAngle !== null && elbowAngle < 90) detectedExercise = 'Bicep Curls';
-    else if (hipAngle !== null && hipAngle < 100) detectedExercise = 'Lunges';
-    else if (elbowAngle !== null && elbowAngle < 110 && hipAngle !== null && hipAngle > 160) detectedExercise = 'Pushups';
+    if (isLying) {
+        if (hipAngle !== null && hipAngle < 100) detectedExercise = 'Sit-ups';
+        else if (elbowAngle !== null && elbowAngle < 100) detectedExercise = 'Bench Press';
+        else if (elbowAngle !== null && elbowAngle > 160 && hipAngle > 160) detectedExercise = 'Plank';
+        else detectedExercise = 'Pushups';
+    } else if (handsAboveHead) {
+        if (feetApart && shoulderAngle > 120) detectedExercise = 'Jumping Jacks';
+        else if (elbowAngle < 100) detectedExercise = 'Tricep Extensions';
+        else detectedExercise = 'Shoulder Press';
+    } else if (kneeAngle !== null && kneeAngle < 115) {
+        const kneeDiff = Math.abs(lm[25].y - lm[26].y);
+        detectedExercise = kneeDiff < 0.1 ? 'Squats' : 'Lunges';
+    } else if (shoulderAngle !== null && shoulderAngle > 70) {
+        const handsForward = lm[15].z < lm[11].z - 0.1;
+        detectedExercise = handsForward ? 'Front Raises' : 'Lateral Raises';
+    } else if (elbowAngle !== null && elbowAngle < 110) {
+        detectedExercise = 'Bicep Curls';
+    } else if (hipAngle !== null && hipAngle < 130) {
+        detectedExercise = 'Deadlift';
+    } else if (Math.abs(lm[11].y - lm[12].y) < 0.05 && shoulderAngle < 20) {
+        // Detecting subtle shoulder elevation for shrugs is hard, but we'll try
+        detectedExercise = 'Shrugs';
+    }
 
-    // Majority Vote over last 20 frames
+    // Majority Vote for stability
     exHistoryRef.current.push(detectedExercise);
-    if (exHistoryRef.current.length > 20) exHistoryRef.current.shift();
-    
+    if (exHistoryRef.current.length > 25) exHistoryRef.current.shift();
     const counts = exHistoryRef.current.reduce((acc, val) => { acc[val] = (acc[val] || 0) + 1; return acc; }, {});
     const mostFrequent = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
 
@@ -141,7 +165,9 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         setExercise(mostFrequent);
         exerciseRef.current = mostFrequent;
         setCounter(0); 
-        stageRef.current = mostFrequent === 'Bicep Curls' ? 'down' : 'up';
+        const startUp = ['Squats', 'Lunges', 'Pushups', 'Deadlift', 'Shoulder Press', 'Bench Press', 'Lateral Raises', 'Jumping Jacks', 'Front Raises', 'Shoulder Press', 'Tricep Extensions'];
+        stageRef.current = startUp.includes(mostFrequent) ? 'up' : 'down';
+        setStage(stageRef.current);
     } else if (mostFrequent === 'Standing' && exerciseRef.current === 'Detecting...') {
         setExercise('Standing');
         exerciseRef.current = 'Standing';
@@ -153,184 +179,130 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
 
     const ex = exerciseRef.current;
     let currentFeedback = 'Good form ✓';
-    let deductions = 0;    // penalty points (0-100)
-    let detected = false;  // did we get valid landmarks for this exercise?
+    let deductions = 0;
+    let detected = false;
 
-    // ── SQUATS ────────────────────────────────────────────────────────────
     if (ex === 'Squats') {
-      const side = getBetterSide(lm, 23, 24); // L/R hip
-      const hipIdx  = side === 'left' ? 23 : 24;
-      const kneeIdx = side === 'left' ? 25 : 26;
-      const ankleIdx= side === 'left' ? 27 : 28;
-      const shoulderIdx = side === 'left' ? 11 : 12;
-
-      const kneeAngle = safeAngle(lm[hipIdx], lm[kneeIdx], lm[ankleIdx]);
-      const backAngle = calculateBackAngle(lm[shoulderIdx], lm[hipIdx]);
-
+      const kneeAngle = safeAngle(lm[side === 'left' ? 23 : 24], lm[side === 'left' ? 25 : 26], lm[side === 'left' ? 27 : 28]);
       if (kneeAngle !== null) {
         detected = true;
-        if (kneeAngle > 160) {
-          if (stageRef.current === 'down') {
-            setCounter(c => c + 1);
-            stageRef.current = 'up';
-            setStage('up');
-          }
-          currentFeedback = 'Lower into squat';
-        } else if (kneeAngle < 90) {
-          stageRef.current = 'down';
-          setStage('down');
-          currentFeedback = 'Excellent depth! ✓';
-        } else {
-          currentFeedback = 'Keep going lower…';
-        }
-      }
-      // Back form check
-      if (backAngle !== null && backAngle > 25) {
-        currentFeedback = '⚠ Straighten your back!';
-        deductions += 30;
+        if (kneeAngle > 160) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Lower into squat'; }
+        else if (kneeAngle < 90) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Excellent depth! ✓'; }
       }
     }
-
-    // ── PUSH-UPS ──────────────────────────────────────────────────────────
     else if (ex === 'Pushups') {
-      // Pick better-visible shoulder side
-      const side      = getBetterSide(lm, 11, 12);
-      const shIdx     = side === 'left' ? 11 : 12;
-      const elIdx     = side === 'left' ? 13 : 14;
-      const wrIdx     = side === 'left' ? 15 : 16;
-      const hipIdx    = side === 'left' ? 23 : 24;
-      const ankleIdx  = side === 'left' ? 27 : 28;
-
-      const elbowAngle    = safeAngle(lm[shIdx], lm[elIdx], lm[wrIdx]);
-      const bodyAlignment = safeAngle(lm[shIdx], lm[hipIdx], lm[ankleIdx]);
-
+      const elbowAngle = safeAngle(lm[side === 'left' ? 11 : 12], lm[side === 'left' ? 13 : 14], lm[side === 'left' ? 15 : 16]);
       if (elbowAngle !== null) {
+        detected = true;
+        if (elbowAngle > 160) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Lower your chest'; }
+        else if (elbowAngle < 90) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Good depth ✓'; }
+      }
+    }
+    else if (ex === 'Jumping Jacks') {
+        detected = true;
+        if (shoulderAngle > 150 && feetApart) {
+            if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); }
+            currentFeedback = 'Arms up! ✓';
+        } else if (shoulderAngle < 40 && !feetApart) {
+            stageRef.current = 'down'; setStage('down');
+            currentFeedback = 'Jump out!';
+        }
+    }
+    else if (ex === 'Tricep Extensions') {
         detected = true;
         if (elbowAngle > 160) {
-          if (stageRef.current === 'down') {
-            setCounter(c => c + 1);
-            stageRef.current = 'up';
-            setStage('up');
-          }
-          currentFeedback = 'Lower your chest';
-        } else if (elbowAngle < 90) {
-          stageRef.current = 'down';
-          setStage('down');
-          currentFeedback = 'Good depth ✓';
+            if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); }
+            currentFeedback = 'Full extension ✓';
+        } else if (elbowAngle < 60) {
+            stageRef.current = 'down'; setStage('down');
+            currentFeedback = 'Lower behind head';
         }
-      }
-      if (bodyAlignment !== null && bodyAlignment < 160) {
-        currentFeedback = '⚠ Tighten your core!';
-        deductions += 40;
-      }
     }
-
-    // ── LUNGES ────────────────────────────────────────────────────────────
+    else if (ex === 'Front Raises') {
+        detected = true;
+        if (shoulderAngle > 80) {
+            if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); }
+            currentFeedback = 'Shoulder height ✓';
+        } else if (shoulderAngle < 20) {
+            stageRef.current = 'down'; setStage('down');
+            currentFeedback = 'Raise in front';
+        }
+    }
+    else if (ex === 'Plank') {
+        detected = true;
+        currentFeedback = 'Hold position... core tight!';
+        // For static exercises, we could use a timer, but we'll stick to rep detection as 'time held'
+        if (isActiveRef.current) {
+            // Count every 30 frames as 1 "unit" (approx 1 sec)
+            if (window.plankCounter === undefined) window.plankCounter = 0;
+            window.plankCounter++;
+            if (window.plankCounter % 30 === 0) setCounter(c => c + 1);
+        }
+    }
+    else if (ex === 'Shoulder Press') {
+        if (elbowAngle !== null) {
+            detected = true;
+            if (elbowAngle > 160) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Press to top! ✓'; }
+            else if (elbowAngle < 70) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Lower to shoulders'; }
+        }
+    }
+    else if (ex === 'Bench Press') {
+        if (elbowAngle !== null) {
+            detected = true;
+            if (elbowAngle > 160) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Push up! ✓'; }
+            else if (elbowAngle < 80) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Lower to chest'; }
+        }
+    }
+    else if (ex === 'Sit-ups') {
+        if (hipAngle !== null) {
+            detected = true;
+            if (hipAngle < 80) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Sit up! ✓'; }
+            else if (hipAngle > 140) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Lower slowly'; }
+        }
+    }
+    else if (ex === 'Lateral Raises') {
+        if (shoulderAngle !== null) {
+            detected = true;
+            if (shoulderAngle > 85) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Parallel to floor ✓'; }
+            else if (shoulderAngle < 25) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Raise arms out'; }
+        }
+    }
     else if (ex === 'Lunges') {
-      // check BOTH knees independently for lunges
-      const leftKneeAngle  = safeAngle(lm[23], lm[25], lm[27]);  // L hip-knee-ankle
-      const rightKneeAngle = safeAngle(lm[24], lm[26], lm[28]);  // R hip-knee-ankle
-      const frontAngle     = leftKneeAngle ?? rightKneeAngle;     // best available
-
+      const leftKneeAngle = safeAngle(lm[23], lm[25], lm[27]);
+      const rightKneeAngle = safeAngle(lm[24], lm[26], lm[28]);
+      const frontAngle = leftKneeAngle ?? rightKneeAngle;
       if (frontAngle !== null) {
         detected = true;
-        if (frontAngle > 160) {
-          if (stageRef.current === 'down') {
-            setCounter(c => c + 1);
-            stageRef.current = 'up';
-            setStage('up');
-          }
-          currentFeedback = 'Step forward & lower';
-        } else if (frontAngle < 100) {
-          stageRef.current = 'down';
-          setStage('down');
-          currentFeedback = 'Great depth ✓';
-        }
-        // Check back knee doesn't drop below 90°
-        const backAngle = leftKneeAngle !== null && rightKneeAngle !== null
-          ? Math.min(leftKneeAngle, rightKneeAngle)
-          : null;
-        if (backAngle !== null && backAngle < 80) {
-          currentFeedback = '⚠ Don\'t let back knee touch floor';
-          deductions += 20;
-        }
+        if (frontAngle > 160) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Step & lower'; }
+        else if (frontAngle < 100) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Good depth ✓'; }
       }
     }
-
-    // ── DEADLIFT ──────────────────────────────────────────────────────────
     else if (ex === 'Deadlift') {
-      const side    = getBetterSide(lm, 11, 12);
-      const shIdx   = side === 'left' ? 11 : 12;
-      const hipIdx  = side === 'left' ? 23 : 24;
-      const kneeIdx = side === 'left' ? 25 : 26;
-      const ankleIdx= side === 'left' ? 27 : 28;
-
-      const hipAngle  = safeAngle(lm[shIdx], lm[hipIdx], lm[kneeIdx]);
-      const kneeAngle = safeAngle(lm[hipIdx], lm[kneeIdx], lm[ankleIdx]);
-      const backAngle = calculateBackAngle(lm[shIdx], lm[hipIdx]); // proper spine angle
-
-      if (hipAngle !== null && kneeAngle !== null) {
+      if (hipAngle !== null) {
         detected = true;
-        if (hipAngle > 160 && kneeAngle > 160) {
-          if (stageRef.current === 'down') {
-            setCounter(c => c + 1);
-            stageRef.current = 'up';
-            setStage('up');
-          }
-          currentFeedback = 'Stand tall ✓';
-        } else if (hipAngle < 100) {
-          stageRef.current = 'down';
-          setStage('down');
-          currentFeedback = 'Drive hips back';
-        }
-      }
-      if (backAngle !== null && backAngle > 20 && stageRef.current === 'down') {
-        currentFeedback = '⚠ Keep your back FLAT!';
-        deductions += 35;
+        if (hipAngle > 165) { if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); } currentFeedback = 'Stand tall ✓'; }
+        else if (hipAngle < 110) { stageRef.current = 'down'; setStage('down'); currentFeedback = 'Hips back'; }
       }
     }
-
-    // ── BICEP CURLS ───────────────────────────────────────────────────────
     else if (ex === 'Bicep Curls') {
-      // Initial stage should be 'down' (arm extended), not 'up'.
-      // Rep is counted when arm comes BACK DOWN after curling.
-      const side    = getBetterSide(lm, 11, 12);
-      const shIdx   = side === 'left' ? 11 : 12;
-      const elIdx   = side === 'left' ? 13 : 14;
-      const wrIdx   = side === 'left' ? 15 : 16;
-      // Check elbow doesn't flare out (elbow stays close to torso)
-      const hipIdx  = side === 'left' ? 23 : 24;
-
-      const elbowAngle = safeAngle(lm[shIdx], lm[elIdx], lm[wrIdx]);
-
       if (elbowAngle !== null) {
         detected = true;
-        if (elbowAngle > 150) {
-          // Arm fully extended (bottom of curl)
-          if (stageRef.current === 'up') {
-            // Rep complete: was curled, now extended again
-            setCounter(c => c + 1);
-          }
-          stageRef.current = 'down';
-          setStage('down');
-          currentFeedback = 'Curl up!';
-        } else if (elbowAngle < 45) {
-          // Arm fully curled (top)
-          stageRef.current = 'up';
-          setStage('up');
-          currentFeedback = 'Squeeze & lower slowly ✓';
-        } else {
-          currentFeedback = 'Keep curling…';
-        }
-        // Elbow flare check: shoulder shouldn't move much
-        if (lm[shIdx] && lm[hipIdx]) {
-          const shoulderMovement = Math.abs(lm[shIdx].x - lm[hipIdx].x);
-          if (shoulderMovement > 0.15) {
-            deductions += 15;
-            currentFeedback = '⚠ Keep elbow fixed!';
-          }
-        }
+        if (elbowAngle > 150) { if (stageRef.current === 'up') { setCounter(c => c + 1); } stageRef.current = 'down'; setStage('down'); currentFeedback = 'Curl up!'; }
+        else if (elbowAngle < 45) { stageRef.current = 'up'; setStage('up'); currentFeedback = 'Squeeze at top ✓'; }
       }
+    }
+    else if (ex === 'Shrugs') {
+        detected = true;
+        // Check for shoulder Y movement relative to nose
+        const shY = (lm[11].y + lm[12].y) / 2;
+        const relY = nose.y - shY;
+        if (relY > 0.22) { // Shoulders high
+            if (stageRef.current === 'down') { setCounter(c => c + 1); stageRef.current = 'up'; setStage('up'); }
+            currentFeedback = 'Squeeze traps! ✓';
+        } else if (relY < 0.18) { // Shoulders low
+            stageRef.current = 'down'; setStage('down');
+            currentFeedback = 'Lower shoulders';
+        }
     }
 
     if (!detected) {
@@ -645,30 +617,75 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
               <Info size={14} /> Trainer Tips
             </h4>
             <ul className="text-xs text-slate-400 flex flex-col gap-3 font-bold">
+              {exercise === 'Jumping Jacks' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Jump feet wide and hands up</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Stay light on your toes</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Maintain a steady rhythm</li>
+              </>)}
+              {exercise === 'Tricep Extensions' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep elbows close to ears</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Full extension at the top</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Lower weight slowly behind head</li>
+              </>)}
+              {exercise === 'Front Raises' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep arms straight but not locked</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Raise to shoulder level</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Control the weight on the way down</li>
+              </>)}
+              {exercise === 'Plank' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep your body in a straight line</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Squeeze your core and glutes</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Don't let your hips sag</li>
+              </>)}
+              {exercise === 'Shrugs' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Raise shoulders toward ears</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Squeeze traps at the top</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Avoid rolling your shoulders</li>
+              </>)}
               {exercise === 'Squats' && (<>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Chest up, shoulders back</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Hips below knee level</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Face camera directly or from side</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep knees in line with toes</li>
               </>)}
               {exercise === 'Pushups' && (<>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Body in a straight line</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Chest almost touches floor</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Camera should be at ground level side-on</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Elbows at 45 degree angle</li>
+              </>)}
+              {exercise === 'Shoulder Press' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Full lockout at the top</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Lower bar to chin level</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep core tight, no back arch</li>
+              </>)}
+              {exercise === 'Bench Press' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep feet flat on floor</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Bar touches mid-chest</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Drive bar up with control</li>
+              </>)}
+              {exercise === 'Sit-ups' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Hands behind ears or on chest</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Sit up until elbows touch knees</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Roll back down slowly</li>
+              </>)}
+              {exercise === 'Lateral Raises' && (<>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Slight bend in elbows</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Raise weights to shoulder height</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Avoid using momentum (swinging)</li>
               </>)}
               {exercise === 'Lunges' && (<>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> 90° bend in both knees</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep upper body vertical</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Back knee should not touch floor</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Step back to starting position</li>
               </>)}
               {exercise === 'Deadlift' && (<>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep back flat, not rounded</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Drive through your heels</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Side-angle camera works best</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Bar stays close to legs</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Lock out hips at the top</li>
               </>)}
               {exercise === 'Bicep Curls' && (<>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep elbows tucked to sides</li>
                 <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Full extension at bottom</li>
-                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Rep counts on the way DOWN</li>
+                <li className="flex items-start gap-3"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Squeeze at the top</li>
               </>)}
               {(exercise === 'Standing' || exercise === 'Detecting...') && (<>
                 <li className="flex items-start gap-3"><Info size={14} className="text-blue-400 shrink-0" /> Stand 6-8 feet back for best accuracy</li>
