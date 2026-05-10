@@ -527,7 +527,7 @@ function App() {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen w-full bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden relative">
-        {/* Global Motion Background */}
+        {/* Global Motion Background - Extremely subtle for overall "life" */}
         <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none">
            <video autoPlay muted loop playsInline className="w-full h-full object-cover grayscale">
              <source src="/gym_demo.mp4" type="video/mp4" />
@@ -535,7 +535,7 @@ function App() {
         </div>
 
         {/* Navigation */}
-        <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-md bg-[#020617]/40 border-b border-white/5">
+        <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-xl bg-[#020617]/40 border-b border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
               <Shield size={24} className="text-white" />
@@ -552,13 +552,13 @@ function App() {
           <button onClick={() => {
             const loginSection = document.getElementById('auth-section');
             loginSection?.scrollIntoView({ behavior: 'smooth' });
-          }} className="px-6 py-2.5 rounded-full bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all">
+          }} className="px-6 py-2.5 rounded-full bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-xl shadow-white/5">
             Get Started
           </button>
         </nav>
 
         {/* Hero Section */}
-        <section className="relative min-h-screen flex items-center pt-20 px-8 lg:px-20 overflow-hidden">
+        <section className="relative min-h-screen flex items-center pt-20 px-6 lg:px-20 overflow-hidden">
           {/* Hero Specific Background Video */}
           <div className="absolute inset-0 z-0 opacity-40">
              <video 
@@ -570,18 +570,18 @@ function App() {
              >
                <source src="/gym_demo.mp4" type="video/mp4" />
              </video>
-             <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-transparent to-[#020617]" />
+             <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-[#020617]/40 to-[#020617]" />
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(37,99,235,0.1),transparent_70%)]" />
           </div>
 
           <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
-            <div className="space-y-8 animate-fade-up text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-500/20">
-                <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Next-Gen Biometric Intelligence</span>
+            <div className="space-y-10 animate-fade-up">
+              <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-600/20 text-blue-400">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Now in Production v4.0</span>
               </div>
-              <h2 className="text-6xl lg:text-8xl font-black heading-font leading-[0.9] tracking-tighter">
-                THE FUTURE <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 text-glow">OF GYM VISION.</span>
+              <h2 className="text-6xl lg:text-[100px] font-black heading-font leading-[0.85] tracking-tighter text-glow uppercase">
+                Intelligence <br /> <span className="text-blue-600">in Motion.</span>
               </h2>
               <p className="text-lg text-slate-400 font-medium max-w-xl leading-relaxed">
                 Sentinel AI revolutionizes fitness management through neural face recognition and real-time workout analysis. Seamless access, automated tracking, and precision analytics.
@@ -733,8 +733,15 @@ function App() {
         </section>
 
         {/* Motion Section - System in Action */}
-        <section id="how-it-works" className="py-32 px-8 lg:px-20 bg-white/[0.02]">
-          <div className="container mx-auto text-center space-y-20">
+        <section id="how-it-works" className="py-32 px-8 lg:px-20 relative overflow-hidden">
+          {/* Subtle background motion for this section specifically */}
+          <div className="absolute inset-0 z-0 opacity-[0.05] pointer-events-none">
+             <video autoPlay muted loop playsInline className="w-full h-full object-cover">
+               <source src="/premium_demo.mp4" type="video/mp4" />
+             </video>
+          </div>
+
+          <div className="container mx-auto text-center space-y-20 relative z-10">
             <div className="max-w-3xl mx-auto space-y-6">
               <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em]">Intelligence in Motion</h3>
               <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter text-glow text-white">SEE EVERYTHING. <br /> KNOW EVERYTHING.</h2>
