@@ -139,24 +139,26 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         else if (elbowAngle !== null && elbowAngle < 100) detectedExercise = 'Bench Press';
         else if (elbowAngle !== null && elbowAngle > 160 && hipAngle > 160) detectedExercise = 'Plank';
         else detectedExercise = 'Pushups';
-    } else if (handsAboveHead) {
+    } else if (handsAboveHead || (handsAboveShoulders && shoulderAngle > 60)) {
+        // Shoulder Press or Tricep Extensions
         if (feetApart && shoulderAngle > 120) detectedExercise = 'Jumping Jacks';
-        else if (elbowAngle < 100) detectedExercise = 'Tricep Extensions';
+        else if (elbowAngle !== null && elbowAngle < 80 && handsAboveShoulders) detectedExercise = 'Tricep Extensions';
         else detectedExercise = 'Shoulder Press';
     } else if (anklesVisible && kneeAngle !== null && kneeAngle < 115) {
         const kneeDiff = Math.abs(lm[25].y - lm[26].y);
         detectedExercise = kneeDiff < 0.1 ? 'Squats' : 'Lunges';
-    } else if (shoulderAngle !== null && shoulderAngle > 70) {
-        const handsForward = lm[15].z < lm[11].z - 0.1;
+    } else if (shoulderAngle !== null && shoulderAngle > 75) {
+        const handsForward = lm[15].z < lm[11].z - 0.15;
         detectedExercise = handsForward ? 'Front Raises' : 'Lateral Raises';
-    } else if (elbowAngle !== null && elbowAngle < 105) {
+    } else if (elbowAngle !== null && elbowAngle < 110 && shoulderAngle < 45) {
+        // Verified Bicep Curl: Elbow bent AND shoulder tucked
         detectedExercise = 'Bicep Curls';
     } else if (anklesVisible && hipAngle !== null && hipAngle < 130) {
         detectedExercise = 'Deadlift';
     } else {
         const shY = (lm[11].y + lm[12].y) / 2;
         const relY = lm[0].y - shY;
-        if (relY > 0.28 && shoulderAngle < 20) detectedExercise = 'Shrugs';
+        if (relY > 0.28 && shoulderAngle < 25) detectedExercise = 'Shrugs';
         else detectedExercise = 'Standing';
     }
 
