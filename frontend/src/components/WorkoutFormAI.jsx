@@ -130,6 +130,9 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     const isLying = Math.abs(lm[11].y - lm[23].y) < 0.15;
     const feetApart = Math.abs(lm[27].x - lm[28].x) > 0.4;
 
+    const anklesVisible = (lm[27]?.visibility ?? 0) > 0.5 || (lm[28]?.visibility ?? 0) > 0.5;
+    const kneesVisible = (lm[25]?.visibility ?? 0) > 0.5 || (lm[26]?.visibility ?? 0) > 0.5;
+
     let detectedExercise = 'Standing';
     if (isLying) {
         if (hipAngle !== null && hipAngle < 100) detectedExercise = 'Sit-ups';
@@ -140,19 +143,21 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         if (feetApart && shoulderAngle > 120) detectedExercise = 'Jumping Jacks';
         else if (elbowAngle < 100) detectedExercise = 'Tricep Extensions';
         else detectedExercise = 'Shoulder Press';
-    } else if (kneeAngle !== null && kneeAngle < 115) {
+    } else if (anklesVisible && kneeAngle !== null && kneeAngle < 115) {
         const kneeDiff = Math.abs(lm[25].y - lm[26].y);
         detectedExercise = kneeDiff < 0.1 ? 'Squats' : 'Lunges';
     } else if (shoulderAngle !== null && shoulderAngle > 70) {
         const handsForward = lm[15].z < lm[11].z - 0.1;
         detectedExercise = handsForward ? 'Front Raises' : 'Lateral Raises';
-    } else if (elbowAngle !== null && elbowAngle < 110) {
+    } else if (elbowAngle !== null && elbowAngle < 105) {
         detectedExercise = 'Bicep Curls';
-    } else if (hipAngle !== null && hipAngle < 130) {
+    } else if (anklesVisible && hipAngle !== null && hipAngle < 130) {
         detectedExercise = 'Deadlift';
-    } else if (Math.abs(lm[11].y - lm[12].y) < 0.05 && shoulderAngle < 20) {
-        // Detecting subtle shoulder elevation for shrugs is hard, but we'll try
-        detectedExercise = 'Shrugs';
+    } else {
+        const shY = (lm[11].y + lm[12].y) / 2;
+        const relY = lm[0].y - shY;
+        if (relY > 0.28 && shoulderAngle < 20) detectedExercise = 'Shrugs';
+        else detectedExercise = 'Standing';
     }
 
     // Majority Vote for stability
@@ -165,10 +170,10 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         setExercise(mostFrequent);
         exerciseRef.current = mostFrequent;
         setCounter(0); 
-        const startUp = ['Squats', 'Lunges', 'Pushups', 'Deadlift', 'Shoulder Press', 'Bench Press', 'Lateral Raises', 'Jumping Jacks', 'Front Raises', 'Shoulder Press', 'Tricep Extensions'];
+        const startUp = ['Squats', 'Lunges', 'Pushups', 'Deadlift', 'Shoulder Press', 'Bench Press', 'Lateral Raises', 'Jumping Jacks', 'Front Raises', 'Tricep Extensions', 'Shrugs'];
         stageRef.current = startUp.includes(mostFrequent) ? 'up' : 'down';
         setStage(stageRef.current);
-    } else if (mostFrequent === 'Standing' && exerciseRef.current === 'Detecting...') {
+    } else if (mostFrequent === 'Standing' && exerciseRef.current !== 'Standing' && exerciseRef.current !== 'Detecting...') {
         setExercise('Standing');
         exerciseRef.current = 'Standing';
     }
@@ -477,10 +482,15 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         body_fat: biometrics.body_fat,
         heart_rate: biometrics.heart_rate
       });
+      // RESET ALL STATES
       setCounter(0);
       setAllAccuracies([]);
-      stageRef.current = exercise === 'Bicep Curls' ? 'down' : 'up';
-      setStage(stageRef.current);
+      setExercise('Detecting...');
+      exerciseRef.current = 'Detecting...';
+      exHistoryRef.current = [];
+      stageRef.current = 'up';
+      setStage('up');
+      setFeedback('Stand in view to begin');
     }
     setIsActive(prev => !prev);
   };
