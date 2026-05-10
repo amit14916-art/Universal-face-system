@@ -527,23 +527,23 @@ function App() {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen w-full bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden relative">
-        {/* Global Motion Background - Extremely subtle for overall "life" */}
-        <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none">
-           <video autoPlay muted loop playsInline className="w-full h-full object-cover grayscale">
+        {/* Global Motion Background - Very subtle depth */}
+        <div className="fixed inset-0 z-0 opacity-[0.05] pointer-events-none">
+           <video autoPlay muted loop playsInline className="w-full h-full object-cover">
              <source src="/gym_demo.mp4" type="video/mp4" />
            </video>
         </div>
 
         {/* Navigation */}
-        <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-xl bg-[#020617]/40 border-b border-white/5">
+        <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-2xl bg-[#020617]/60 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
               <Shield size={24} className="text-white" />
             </div>
             <h1 className="text-2xl font-black heading-font tracking-tighter uppercase">Sentinel AI</h1>
           </div>
           <div className="hidden md:flex items-center gap-10">
-            {['Features', 'How it Works', 'About', 'Contact'].map(item => (
+            {['Features', 'Intelligence', 'Protocol', 'Contact'].map(item => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`} className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white transition-colors">
                 {item}
               </a>
@@ -552,95 +552,85 @@ function App() {
           <button onClick={() => {
             const loginSection = document.getElementById('auth-section');
             loginSection?.scrollIntoView({ behavior: 'smooth' });
-          }} className="px-6 py-2.5 rounded-full bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-xl shadow-white/5">
-            Get Started
+          }} className="px-8 py-3 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all shadow-xl shadow-blue-600/20">
+            Enter Dashboard
           </button>
         </nav>
 
         {/* Hero Section */}
-        <section className="relative min-h-screen flex items-center pt-20 px-6 lg:px-20 overflow-hidden">
-          {/* Hero Specific Background Video */}
-          <div className="absolute inset-0 z-0 opacity-40">
+        <section className="relative min-h-screen flex items-center pt-24 px-6 lg:px-20 overflow-hidden">
+          <div className="absolute inset-0 z-0">
              <video 
                autoPlay 
                muted 
                loop 
                playsInline 
-               className="w-full h-full object-cover grayscale"
+               className="w-full h-full object-cover opacity-60"
              >
                <source src="/gym_demo.mp4" type="video/mp4" />
              </video>
-             <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-[#020617]/40 to-[#020617]" />
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(37,99,235,0.1),transparent_70%)]" />
+             <div className="absolute inset-0 bg-gradient-to-r from-[#020617] via-[#020617]/70 to-[#020617]/30" />
+             <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-transparent to-[#020617]" />
           </div>
 
           <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
             <div className="space-y-10 animate-fade-up">
               <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-600/20 text-blue-400">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Now in Production v4.0</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]">Neural Vision Protocol Online</span>
               </div>
-              <h2 className="text-6xl lg:text-[100px] font-black heading-font leading-[0.85] tracking-tighter text-glow uppercase">
-                Intelligence <br /> <span className="text-blue-600">in Motion.</span>
+              <h2 className="text-7xl lg:text-[120px] font-black heading-font leading-[0.8] tracking-tighter text-glow uppercase">
+                Beyond <br /> <span className="text-blue-600">Observation.</span>
               </h2>
-              <p className="text-lg text-slate-400 font-medium max-w-xl leading-relaxed">
-                Sentinel AI revolutionizes fitness management through neural face recognition and real-time workout analysis. Seamless access, automated tracking, and precision analytics.
+              <p className="text-xl text-slate-300 font-medium max-w-xl leading-relaxed">
+                The world's first AI-integrated gym ecosystem. Harness neural face ID and real-time kinetic analysis to automate security and performance.
               </p>
-              <div className="flex flex-wrap gap-4 pt-4">
-                <button className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20 active:scale-95">
-                  Book a Demo <ArrowRight size={18} />
+              <div className="flex flex-wrap gap-5 pt-4">
+                <button onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} className="px-10 py-5 rounded-2xl bg-white text-black font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-2xl active:scale-95">
+                  Explore Capabilities <ArrowRight size={18} />
                 </button>
-                <button className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:bg-white/10 transition-all active:scale-95">
-                  Explore Tech
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-10 pt-10 border-t border-white/5">
-                {[
-                  { label: 'Latency', val: '< 50ms' },
-                  { label: 'Accuracy', val: '99.9%' },
-                  { label: 'Nodes', val: 'Unlimited' }
-                ].map(stat => (
-                  <div key={stat.label}>
-                    <div className="text-2xl font-black text-white">{stat.val}</div>
-                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{stat.label}</div>
-                  </div>
-                ))}
+                <div className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/5 border border-white/10">
+                   <div className="flex -space-x-3">
+                      {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border-2 border-[#020617] bg-slate-800" />)}
+                   </div>
+                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">500+ Gyms Active</span>
+                </div>
               </div>
             </div>
 
             {/* Auth Card Container */}
             <div id="auth-section" className="flex justify-center lg:justify-end animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <div className="glass-panel w-full max-w-md p-10 lg:p-12 border-white/10 shadow-2xl relative">
-                <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-600/20 rounded-full blur-2xl" />
-                <div className="flex flex-col items-center mb-8">
-                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
-                    {authMode === 'login' ? <LogIn size={24} className="text-blue-400" /> : <User size={24} className="text-emerald-400" />}
+              <div className="glass-panel w-full max-w-md p-10 lg:p-12 border-white/10 shadow-[0_0_100px_rgba(37,99,235,0.15)] relative">
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-600/10 rounded-full blur-[80px]" />
+                <div className="flex flex-col items-center mb-8 text-center">
+                  <div className="w-16 h-16 bg-blue-600/10 rounded-3xl flex items-center justify-center mb-6 border border-blue-600/20 shadow-inner">
+                    {authMode === 'login' ? <LogIn size={28} className="text-blue-400" /> : <User size={28} className="text-emerald-400" />}
                   </div>
-                  <h3 className="text-2xl font-black heading-font text-white uppercase tracking-tight">{authMode === 'login' ? 'Owner Login' : 'Register Gym'}</h3>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-2">Access Secure Protocol</p>
+                  <h3 className="text-3xl font-black heading-font text-white uppercase tracking-tight leading-none">{authMode === 'login' ? 'Secure Access' : 'Establish Node'}</h3>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-4">Authorized Personnel Only</p>
                 </div>
 
                 {authError && (
-                  <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-bold" role="alert">
+                  <div className="mb-6 px-5 py-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-bold flex items-center gap-3 animate-shake">
+                    <ShieldAlert size={16} className="shrink-0" />
                     {authError}
                   </div>
                 )}
 
-                <form className="space-y-5" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
+                <form className="space-y-6" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
                   {authMode === 'signup' && (
                     <>
                       <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Gym Name</label>
-                        <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                          <LayoutList className="text-slate-600" size={16} />
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-3">Organization Name</label>
+                        <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl px-5 py-5 focus-within:border-blue-600 transition-all">
+                          <LayoutList className="text-slate-600" size={18} />
                           <input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Elite Fitness Center" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
-                        <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                          <Mail className="text-slate-600" size={16} />
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-3">Secure Email</label>
+                        <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl px-5 py-5 focus-within:border-blue-600 transition-all">
+                          <Mail className="text-slate-600" size={18} />
                           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@gym.com" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
                         </div>
                       </div>
@@ -648,52 +638,53 @@ function App() {
                   )}
                   
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">{authMode === 'login' ? 'Identifier' : 'Mobile Number'}</label>
-                    <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      {authMode === 'login' ? <User className="text-slate-600" size={16} /> : <Activity className="text-slate-600" size={16} />}
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-3">{authMode === 'login' ? 'Node Identifier' : 'Contact Mobile'}</label>
+                    <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl px-5 py-5 focus-within:border-blue-600 transition-all">
+                      {authMode === 'login' ? <User className="text-slate-600" size={18} /> : <Activity className="text-slate-600" size={18} />}
                       <input 
                         type="text" 
                         value={authMode === 'login' ? identifier : mobile} 
                         onChange={e => authMode === 'login' ? setIdentifier(e.target.value) : setMobile(e.target.value)} 
-                        placeholder={authMode === 'login' ? "Email or Mobile" : "+1 000 000 0000"} 
+                        placeholder={authMode === 'login' ? "Email or Mobile" : "+91 0000000000"} 
                         className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Security Key</label>
-                    <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                      <Lock className="text-slate-600" size={16} />
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-3">Security Key</label>
+                    <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl px-5 py-5 focus-within:border-blue-600 transition-all">
+                      <Lock className="text-slate-600" size={18} />
                       <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
                     </div>
                   </div>
 
                   {authMode === 'signup' && (
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Confirm Key</label>
-                      <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
-                        <Lock className="text-slate-600" size={16} />
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-3">Verify Key</label>
+                      <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl px-5 py-5 focus-within:border-blue-600 transition-all">
+                        <Lock className="text-slate-600" size={18} />
                         <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
                       </div>
                     </div>
                   )}
 
-                  <button type="submit" disabled={isAuthLoading || isSignupLoading} className="w-full bg-white text-black py-4 rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 mt-8 hover:bg-blue-600 hover:text-white transition-all active:scale-95 disabled:opacity-50">
+                  <button type="submit" disabled={isAuthLoading || isSignupLoading} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 mt-8 hover:bg-white hover:text-black transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-blue-600/20">
                     {(authMode === 'login' ? isAuthLoading : isSignupLoading) ? (
-                      <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> AUTHENTICATING...</span>
+                      <span className="flex items-center gap-3"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> SYNCHRONIZING...</span>
                     ) : (
-                      <>{authMode === 'login' ? 'INITIATE LOGIN' : 'CREATE ACCOUNT'} <ArrowRight size={18} /></>
+                      <>{authMode === 'login' ? 'INITIALIZE PROTOCOL' : 'CREATE CORE NODE'} <ArrowRight size={20} /></>
                     )}
                   </button>
                 </form>
 
-                <div className="mt-8 flex flex-col items-center gap-4">
-                  <button onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-blue-400 transition-colors">
-                    {authMode === 'login' ? "Don't have a gym ID? Register" : "Already registered? Log in"}
+                <div className="mt-10 flex flex-col items-center gap-6">
+                  <button onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-500 transition-colors">
+                    {authMode === 'login' ? "Don't have a gym ID? Register Node" : "Already registered? Connect Node"}
                   </button>
-                  <button onClick={() => window.location.href = '/admin'} className="flex items-center gap-2 text-[10px] font-black text-blue-500/40 uppercase tracking-widest hover:text-blue-500 transition-colors">
-                    <ShieldAlert size={12} /> Admin Protocol
+                  <div className="w-full h-px bg-white/5" />
+                  <button onClick={() => window.location.href = '/admin'} className="flex items-center gap-2 text-[10px] font-black text-slate-700 uppercase tracking-widest hover:text-slate-500 transition-colors">
+                    <ShieldAlert size={14} /> System Administrator Portal
                   </button>
                 </div>
               </div>
@@ -702,88 +693,124 @@ function App() {
         </section>
 
         {/* Feature Grid */}
-        <section id="features" className="py-32 px-8 lg:px-20 bg-[#020617] relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-[120px] -z-10" />
+        <section id="features" className="py-40 px-8 lg:px-20 bg-[#020617] relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/5 rounded-full blur-[150px] -z-10" />
           <div className="container mx-auto">
-            <div className="max-w-2xl mb-20 space-y-4">
-              <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">Core Capabilities</h3>
-              <h2 className="text-4xl lg:text-5xl font-black heading-font tracking-tight">ENGINEERED FOR EXCELLENCE.</h2>
-              <p className="text-slate-500 font-medium">We've combined computer vision with powerful analytics to create the most advanced gym management system ever built.</p>
+            <div className="max-w-3xl mb-32 space-y-6">
+              <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.5em]">The Ecosystem</h3>
+              <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter leading-tight">MASTER THE <br /> WORKOUT DATA.</h2>
+              <p className="text-xl text-slate-500 font-medium leading-relaxed">Integrated computer vision meets military-grade biometric security. Every rep, every entry, every identity—tracked in real-time.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {[
-                { title: 'Neural Face ID', desc: 'Identify members in under 50ms with 99.9% accuracy using edge computing.', icon: Shield, color: 'text-blue-500' },
-                { title: 'AI Workout Pro', desc: 'Real-time pose estimation to track reps, sets, and form for every exercise.', icon: Activity, color: 'text-emerald-500' },
-                { title: 'Smart Nodes', desc: 'Connect any ONVIF or P2P camera to our neural network effortlessly.', icon: Camera, color: 'text-purple-500' },
-                { title: 'Live Analytics', desc: 'Monitor peak hours, attendance trends, and member behavior in real-time.', icon: LayoutList, color: 'text-amber-500' },
-                { title: 'Auto Notifications', desc: 'Automated WhatsApp and Email alerts for entries and plan expiries.', icon: Bell, color: 'text-rose-500' },
-                { title: 'Secure Vault', desc: 'Biometric data is hashed and secured using military-grade encryption.', icon: Lock, color: 'text-cyan-500' }
+                { title: 'Neural Face ID', desc: 'Identify members in under 50ms with 99.9% accuracy using local edge computing.', icon: Shield, color: 'text-blue-500' },
+                { title: 'AI Trainer Pro', desc: 'Real-time kinetic tracking for 15+ exercises including Rep counting and Form feedback.', icon: Activity, color: 'text-emerald-500' },
+                { title: 'Smart Node Mesh', desc: 'Seamlessly connect any IP, ONVIF, or P2P camera to our neural network.', icon: Camera, color: 'text-purple-500' },
+                { title: 'Executive Insight', desc: 'Live heatmaps, attendance trends, and member behavior analytics.', icon: LayoutList, color: 'text-amber-500' },
+                { title: 'Threat Detection', desc: 'Automated alerts for unauthorized entry or expired member identification.', icon: Bell, color: 'text-rose-500' },
+                { title: 'Secure Ledger', desc: 'Biometric data is hashed and encrypted. We never store raw face images.', icon: Lock, color: 'text-cyan-500' }
               ].map((feat, i) => (
-                <div key={i} className="glass-panel p-10 group hover:border-blue-500/30 transition-all hover:-translate-y-2">
-                  <div className={`w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform ${feat.color}`}>
-                    <feat.icon size={28} />
+                <div key={i} className="glass-panel p-12 group hover:bg-white/[0.03] hover:border-blue-500/30 transition-all hover:-translate-y-3">
+                  <div className={`w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center mb-10 group-hover:scale-110 transition-transform ${feat.color} shadow-inner`}>
+                    <feat.icon size={32} />
                   </div>
-                  <h4 className="text-xl font-black heading-font mb-4 uppercase tracking-tight">{feat.title}</h4>
-                  <p className="text-slate-500 text-sm leading-relaxed font-medium">{feat.desc}</p>
+                  <h4 className="text-2xl font-black heading-font mb-6 uppercase tracking-tight">{feat.title}</h4>
+                  <p className="text-slate-500 text-lg leading-relaxed font-medium">{feat.desc}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Motion Section - System in Action */}
-        <section id="how-it-works" className="py-32 px-8 lg:px-20 relative overflow-hidden">
-          {/* Subtle background motion for this section specifically */}
-          <div className="absolute inset-0 z-0 opacity-[0.05] pointer-events-none">
-             <video autoPlay muted loop playsInline className="w-full h-full object-cover">
+        {/* Intelligence in Motion Showcase */}
+        <section id="intelligence" className="py-40 px-8 lg:px-20 relative overflow-hidden bg-black/40">
+           <div className="absolute inset-0 z-0">
+             <video autoPlay muted loop playsInline className="w-full h-full object-cover opacity-30">
                <source src="/premium_demo.mp4" type="video/mp4" />
              </video>
-          </div>
+             <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-sm" />
+           </div>
 
-          <div className="container mx-auto text-center space-y-20 relative z-10">
-            <div className="max-w-3xl mx-auto space-y-6">
-              <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em]">Intelligence in Motion</h3>
-              <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter text-glow text-white">SEE EVERYTHING. <br /> KNOW EVERYTHING.</h2>
-              <p className="text-slate-400 text-lg">Our neural nodes process thousands of data points per second to ensure your gym runs like a well-oiled machine.</p>
+           <div className="container mx-auto relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
+                 <div className="space-y-10">
+                    <h3 className="text-[11px] font-black text-purple-400 uppercase tracking-[0.5em]">Real-time Telemetry</h3>
+                    <h2 className="text-5xl lg:text-8xl font-black heading-font tracking-tighter leading-none text-white uppercase">KINETIC <br /> RECOGNITION.</h2>
+                    <p className="text-xl text-slate-400 leading-relaxed max-w-lg">Our AI Trainer module uses 33-point pose estimation to monitor movement quality. It doesn't just count reps—it ensures they are performed to standard.</p>
+                    <div className="space-y-6">
+                       {['Posture Alignment Verification', 'Range of Motion Calculation', 'Rest Interval Monitoring'].map(t => (
+                         <div key={t} className="flex items-center gap-4">
+                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle size={14} className="text-emerald-500" /></div>
+                            <span className="text-[12px] font-black text-white uppercase tracking-widest">{t}</span>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="relative group">
+                    <div className="absolute -inset-4 bg-blue-600/20 blur-[100px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative glass-panel p-4 rounded-[48px] border-white/20 bg-black/40 shadow-2xl overflow-hidden aspect-square flex items-center justify-center">
+                       <video autoPlay muted loop playsInline className="w-full h-full object-cover rounded-[32px]">
+                          <source src="/premium_demo.mp4" type="video/mp4" />
+                       </video>
+                       <div className="absolute top-12 left-12 flex flex-col gap-2">
+                          <div className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Tracking Active</div>
+                          <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Node_01_AI</div>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </section>
+
+        {/* System Demonstration Protocol */}
+        <section id="protocol" className="py-40 px-8 lg:px-20 relative overflow-hidden">
+          <div className="container mx-auto text-center space-y-24 relative z-10">
+            <div className="max-w-4xl mx-auto space-y-8">
+              <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.5em]">Live Integration</h3>
+              <h2 className="text-6xl lg:text-9xl font-black heading-font tracking-tighter text-glow text-white uppercase leading-none">ABSOLUTE <br /> CONTROL.</h2>
+              <p className="text-2xl text-slate-400 font-medium">Connect any surveillance camera and transform it into a neural tracking node in seconds.</p>
             </div>
 
-            <div className="relative aspect-video max-w-6xl mx-auto rounded-[40px] overflow-hidden group shadow-2xl border border-white/10 bg-black">
+            <div className="relative aspect-video max-w-6xl mx-auto rounded-[64px] overflow-hidden group shadow-[0_0_150px_rgba(37,99,235,0.2)] border-8 border-white/5 bg-black">
               <video 
                 autoPlay 
                 muted 
                 loop 
                 playsInline 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 opacity-80"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3000ms]"
               >
-                <source src="/premium_demo.mp4" type="video/mp4" />
+                <source src="/gym_demo.mp4" type="video/mp4" />
               </video>
               
-              <div className="absolute inset-0 bg-blue-900/20 backdrop-blur-[1px] pointer-events-none group-hover:opacity-0 transition-opacity duration-500" />
+              <div className="absolute inset-0 bg-blue-900/10 backdrop-blur-[1px] pointer-events-none group-hover:opacity-0 transition-opacity duration-1000" />
               
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 group-hover:opacity-0 transition-opacity duration-500">
-                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl">
-                  <div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-black border-b-[12px] border-b-transparent ml-2" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 group-hover:opacity-0 transition-opacity duration-1000">
+                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-3xl animate-pulse">
+                  <div className="w-0 h-0 border-t-[15px] border-t-transparent border-l-[25px] border-l-black border-b-[15px] border-b-transparent ml-2" />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white">System Demonstration Protocol</span>
+                <span className="text-[12px] font-black uppercase tracking-[0.8em] text-white">Neural System Showcase active</span>
               </div>
               
-              {/* Overlay elements to look like a UI */}
-              <div className="absolute top-10 left-10 p-6 glass-morphism rounded-2xl border border-white/10 hidden md:block animate-fade-in">
-                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[8px] font-black uppercase tracking-widest text-white">LIVE_FEED NODE_01</span>
+              {/* Complex Overlay elements */}
+              <div className="absolute top-16 left-16 p-8 glass-morphism rounded-[32px] border-white/10 hidden lg:block animate-fade-in shadow-2xl">
+                 <div className="flex items-center gap-4 mb-6">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-ping" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">SURVEILLANCE_NODE_01</span>
                  </div>
-                 <div className="space-y-2">
-                    <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-blue-500" /></div>
-                    <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-1/2 h-full bg-indigo-500" /></div>
+                 <div className="space-y-4">
+                    {[85, 62, 94].map((w, i) => (
+                      <div key={i} className="flex flex-col gap-2">
+                         <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${w}%` }} /></div>
+                      </div>
+                    ))}
                  </div>
               </div>
 
-              <div className="absolute bottom-10 right-10 p-6 glass-morphism rounded-2xl border border-white/10 hidden md:block animate-fade-in">
-                 <div className="flex flex-col gap-2 text-left">
-                    <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Neural Hashing</div>
-                    <div className="text-xl font-black text-white tabular-nums">99.98% Accuracy</div>
+              <div className="absolute bottom-16 right-16 p-8 glass-morphism rounded-[32px] border-white/10 hidden lg:block animate-fade-in shadow-2xl">
+                 <div className="flex flex-col gap-3 text-right">
+                    <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Neural Encryption</div>
+                    <div className="text-4xl font-black text-white tabular-nums">99.98% MATCH</div>
                  </div>
               </div>
             </div>
@@ -791,21 +818,21 @@ function App() {
         </section>
 
         {/* Call to Action */}
-        <section className="py-32 px-8 lg:px-20 relative overflow-hidden">
-          <div className="absolute inset-0 bg-blue-600 opacity-[0.03] z-0" />
+        <section className="py-40 px-8 lg:px-20 relative overflow-hidden bg-blue-600">
+          <div className="absolute inset-0 bg-black opacity-10 z-0" />
           <div className="container mx-auto relative z-10 text-center">
-            <div className="max-w-4xl mx-auto glass-panel p-20 lg:p-32 border-blue-500/20">
-               <h2 className="text-4xl lg:text-6xl font-black heading-font tracking-tight mb-8">READY TO EVOLVE?</h2>
-               <p className="text-slate-400 text-lg mb-12 max-w-xl mx-auto">Join the 500+ gyms using Sentinel AI to automate security and enhance member performance.</p>
-               <div className="flex flex-col sm:flex-row gap-6 justify-center">
+            <div className="max-w-5xl mx-auto space-y-12">
+               <h2 className="text-6xl lg:text-[140px] font-black heading-font tracking-tighter mb-8 leading-[0.8] text-white">INITIATE <br /> THE CORE.</h2>
+               <p className="text-2xl text-blue-100 font-medium max-w-2xl mx-auto">Join the future of fitness management. Low latency, high impact, absolute security.</p>
+               <div className="flex flex-col sm:flex-row gap-8 justify-center pt-8">
                   <button onClick={() => {
                     const loginSection = document.getElementById('auth-section');
                     loginSection?.scrollIntoView({ behavior: 'smooth' });
-                  }} className="px-10 py-5 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest hover:bg-blue-500 transition-all">
-                    Start Your Free Trial
+                  }} className="px-16 py-7 rounded-[32px] bg-white text-blue-600 font-black text-lg uppercase tracking-widest hover:bg-[#020617] hover:text-white transition-all shadow-3xl active:scale-95">
+                    Start Integration
                   </button>
-                  <button className="px-10 py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all">
-                    Talk to an Expert
+                  <button className="px-16 py-7 rounded-[32px] bg-transparent border-4 border-white/20 text-white font-black text-lg uppercase tracking-widest hover:bg-white/10 transition-all">
+                    System Architecture
                   </button>
                </div>
             </div>
@@ -813,18 +840,18 @@ function App() {
         </section>
 
         {/* Footer */}
-        <footer className="py-12 px-8 border-t border-white/5 bg-black/20">
-          <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="flex items-center gap-3">
-              <Shield size={20} className="text-blue-500" />
-              <span className="font-black heading-font uppercase tracking-tighter text-lg">Sentinel AI</span>
+        <footer className="py-20 px-8 border-t border-white/5 bg-[#020617]">
+          <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
+            <div className="flex items-center gap-4">
+              <Shield size={32} className="text-blue-500" />
+              <span className="font-black heading-font uppercase tracking-tighter text-3xl">Sentinel AI</span>
             </div>
-            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-              © 2026 Sentinel Intelligence Systems. All rights reserved.
+            <div className="text-[12px] font-bold text-slate-600 uppercase tracking-[0.4em]">
+              © 2026 Sentinel Intelligence Systems // Biometric Security v4.0
             </div>
-            <div className="flex gap-8">
-              {['Privacy', 'Terms', 'Security'].map(item => (
-                <a key={item} href="#" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">{item}</a>
+            <div className="flex gap-10">
+              {['Privacy', 'Terms', 'Security', 'Enterprise'].map(item => (
+                <a key={item} href="#" className="text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">{item}</a>
               ))}
             </div>
           </div>
