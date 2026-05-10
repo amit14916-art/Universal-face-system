@@ -552,10 +552,19 @@ function App() {
 
         {/* Hero Section */}
         <section className="relative min-h-screen flex items-center pt-20 px-8 lg:px-20 overflow-hidden">
-          {/* Animated Background Mesh */}
-          <div className="absolute inset-0 bg-mesh opacity-40 z-0" />
-          <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" />
-          <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+          {/* Motion Background Video */}
+          <div className="absolute inset-0 z-0 opacity-30">
+             <video 
+               autoPlay 
+               muted 
+               loop 
+               playsInline 
+               className="w-full h-full object-cover grayscale"
+             >
+               <source src="/gym_demo.mp4" type="video/mp4" />
+             </video>
+             <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-transparent to-[#020617]" />
+          </div>
 
           <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
             <div className="space-y-8 animate-fade-up text-left">
@@ -565,7 +574,7 @@ function App() {
               </div>
               <h2 className="text-6xl lg:text-8xl font-black heading-font leading-[0.9] tracking-tighter">
                 THE FUTURE <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">OF GYM VISION.</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 text-glow">OF GYM VISION.</span>
               </h2>
               <p className="text-lg text-slate-400 font-medium max-w-xl leading-relaxed">
                 Sentinel AI revolutionizes fitness management through neural face recognition and real-time workout analysis. Seamless access, automated tracking, and precision analytics.
@@ -686,7 +695,8 @@ function App() {
         </section>
 
         {/* Feature Grid */}
-        <section id="features" className="py-32 px-8 lg:px-20 bg-[#020617] relative">
+        <section id="features" className="py-32 px-8 lg:px-20 bg-[#020617] relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-[120px] -z-10" />
           <div className="container mx-auto">
             <div className="max-w-2xl mb-20 space-y-4">
               <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">Core Capabilities</h3>
@@ -720,14 +730,25 @@ function App() {
           <div className="container mx-auto text-center space-y-20">
             <div className="max-w-3xl mx-auto space-y-6">
               <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em]">Intelligence in Motion</h3>
-              <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter">SEE EVERYTHING. <br /> KNOW EVERYTHING.</h2>
+              <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter text-glow text-white">SEE EVERYTHING. <br /> KNOW EVERYTHING.</h2>
               <p className="text-slate-400 text-lg">Our neural nodes process thousands of data points per second to ensure your gym runs like a well-oiled machine.</p>
             </div>
 
-            <div className="relative aspect-video max-w-6xl mx-auto rounded-[40px] overflow-hidden group shadow-2xl border border-white/10">
-              <img src="/hero-bg.png" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="System Preview" />
-              <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center gap-6 group-hover:opacity-0 transition-opacity duration-500">
-                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-2xl">
+            <div className="relative aspect-video max-w-6xl mx-auto rounded-[40px] overflow-hidden group shadow-2xl border border-white/10 bg-black">
+              <video 
+                autoPlay 
+                muted 
+                loop 
+                playsInline 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 opacity-80"
+              >
+                <source src="/premium_demo.mp4" type="video/mp4" />
+              </video>
+              
+              <div className="absolute inset-0 bg-blue-900/20 backdrop-blur-[1px] pointer-events-none group-hover:opacity-0 transition-opacity duration-500" />
+              
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 group-hover:opacity-0 transition-opacity duration-500">
+                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl">
                   <div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-black border-b-[12px] border-b-transparent ml-2" />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white">System Demonstration Protocol</span>
@@ -737,11 +758,18 @@ function App() {
               <div className="absolute top-10 left-10 p-6 glass-morphism rounded-2xl border border-white/10 hidden md:block animate-fade-in">
                  <div className="flex items-center gap-3 mb-4">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[8px] font-black uppercase tracking-widest text-white">NODE_01 ACTIVE</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white">LIVE_FEED NODE_01</span>
                  </div>
                  <div className="space-y-2">
                     <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-blue-500" /></div>
                     <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-1/2 h-full bg-indigo-500" /></div>
+                 </div>
+              </div>
+
+              <div className="absolute bottom-10 right-10 p-6 glass-morphism rounded-2xl border border-white/10 hidden md:block animate-fade-in">
+                 <div className="flex flex-col gap-2 text-left">
+                    <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Neural Hashing</div>
+                    <div className="text-xl font-black text-white tabular-nums">99.98% Accuracy</div>
                  </div>
               </div>
             </div>
