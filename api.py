@@ -816,8 +816,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/faces", StaticFiles(directory="static/faces"), name="faces")
 app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
 
-@app.get("/")
-async def root():
+@app.get("/{path:path}")
+async def serve_frontend(path: str):
+    # Support root-level assets (images, videos from public folder)
+    static_file = os.path.join("frontend/dist", path)
+    if path and os.path.isfile(static_file):
+        return FileResponse(static_file)
+    # Default to index.html for SPA routing
     return FileResponse("frontend/dist/index.html")
 
 @app.get("/admin")

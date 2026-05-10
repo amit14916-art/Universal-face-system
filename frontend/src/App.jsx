@@ -526,7 +526,14 @@ function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen w-full bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden">
+      <div className="min-h-screen w-full bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden relative">
+        {/* Global Motion Background */}
+        <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none">
+           <video autoPlay muted loop playsInline className="w-full h-full object-cover grayscale">
+             <source src="/gym_demo.mp4" type="video/mp4" />
+           </video>
+        </div>
+
         {/* Navigation */}
         <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-md bg-[#020617]/40 border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -552,8 +559,8 @@ function App() {
 
         {/* Hero Section */}
         <section className="relative min-h-screen flex items-center pt-20 px-8 lg:px-20 overflow-hidden">
-          {/* Motion Background Video */}
-          <div className="absolute inset-0 z-0 opacity-30">
+          {/* Hero Specific Background Video */}
+          <div className="absolute inset-0 z-0 opacity-40">
              <video 
                autoPlay 
                muted 
