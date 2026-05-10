@@ -811,19 +811,31 @@ async def get_all_owners(request: Request, admin_pass: str = None, db: AsyncSess
         })
     return out
 
-# Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/faces", StaticFiles(directory="static/faces"), name="faces")
+app.mount("/videos", StaticFiles(directory="static/videos"), name="videos")
 app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
 
 @app.get("/{path:path}")
 async def serve_frontend(path: str):
-    # Support root-level assets (images, videos from public folder)
-    static_file = os.path.join("frontend/dist", path)
-    if path and os.path.isfile(static_file):
-        return FileResponse(static_file)
-    # Default to index.html for SPA routing
-    return FileResponse("frontend/dist/index.html")
+    # Strip leading slash if present
+    clean_path = path.lstrip("/")
+    
+    # 1. Check if the file exists in frontend/dist
+    dist_file = os.path.join("frontend/dist", clean_path)
+    if clean_path and os.path.isfile(dist_file):
+        return FileResponse(dist_file)
+    
+    # 2. Check if it's a known static path (optional safety)
+    if clean_path.startswith("static/") or clean_path.startswith("api/"):
+        raise HTTPException(status_code=404)
+
+    # 3. Default to index.html for SPA routing
+    index_path = "frontend/dist/index.html"
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    
+    return JSONResponse({"error": "Frontend not built or index.html missing"}, status_code=404)
 
 @app.get("/admin")
 async def admin_page():

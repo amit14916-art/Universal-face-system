@@ -530,7 +530,7 @@ function App() {
         {/* Global Motion Background - Very subtle depth */}
         <div className="fixed inset-0 z-0 opacity-[0.05] pointer-events-none">
            <video autoPlay muted loop playsInline className="w-full h-full object-cover">
-             <source src="/gym_demo.mp4" type="video/mp4" />
+             <source src="/videos/gym_demo.mp4" type="video/mp4" />
            </video>
         </div>
 
@@ -567,7 +567,7 @@ function App() {
                playsInline 
                className="w-full h-full object-cover opacity-60"
              >
-               <source src="/gym_demo.mp4" type="video/mp4" />
+               <source src="/videos/gym_demo.mp4" type="video/mp4" />
              </video>
              <div className="absolute inset-0 bg-gradient-to-r from-[#020617] via-[#020617]/70 to-[#020617]/30" />
              <div className="absolute inset-0 bg-gradient-to-b from-[#020617] via-transparent to-[#020617]" />
@@ -727,7 +727,7 @@ function App() {
         <section id="intelligence" className="py-40 px-8 lg:px-20 relative overflow-hidden bg-black/40">
            <div className="absolute inset-0 z-0">
              <video autoPlay muted loop playsInline className="w-full h-full object-cover opacity-30">
-               <source src="/premium_demo.mp4" type="video/mp4" />
+               <source src="/videos/premium_demo.mp4" type="video/mp4" />
              </video>
              <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-sm" />
            </div>
@@ -751,7 +751,7 @@ function App() {
                     <div className="absolute -inset-4 bg-blue-600/20 blur-[100px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="relative glass-panel p-4 rounded-[48px] border-white/20 bg-black/40 shadow-2xl overflow-hidden aspect-square flex items-center justify-center">
                        <video autoPlay muted loop playsInline className="w-full h-full object-cover rounded-[32px]">
-                          <source src="/premium_demo.mp4" type="video/mp4" />
+                          <source src="/videos/premium_demo.mp4" type="video/mp4" />
                        </video>
                        <div className="absolute top-12 left-12 flex flex-col gap-2">
                           <div className="bg-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Tracking Active</div>
@@ -780,7 +780,7 @@ function App() {
                 playsInline 
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3000ms]"
               >
-                <source src="/gym_demo.mp4" type="video/mp4" />
+                <source src="/videos/gym_demo.mp4" type="video/mp4" />
               </video>
               
               <div className="absolute inset-0 bg-blue-900/10 backdrop-blur-[1px] pointer-events-none group-hover:opacity-0 transition-opacity duration-1000" />
