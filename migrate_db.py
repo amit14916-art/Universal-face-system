@@ -88,6 +88,12 @@ async def migrate():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """, "workout_sessions table")
+        
+        # 5. Workout Columns (in case table already existed)
+        await run_step("ALTER TABLE workout_sessions ADD COLUMN height INTEGER", "height in workout_sessions")
+        await run_step("ALTER TABLE workout_sessions ADD COLUMN body_fat INTEGER", "body_fat in workout_sessions")
+        await run_step("ALTER TABLE workout_sessions ADD COLUMN weight INTEGER", "weight in workout_sessions")
+        await run_step("ALTER TABLE workout_sessions ADD COLUMN heart_rate INTEGER", "heart_rate in workout_sessions")
 
     print("Migration complete.")
     await engine.dispose()

@@ -526,40 +526,267 @@ function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen w-full bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
-        <div className="glass-panel w-full max-w-sm p-12 border-white/10 rounded-[40px] shadow-2xl relative z-20 flex flex-col items-center">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-8"><Shield size={32} className="text-white" /></div>
-            <h1 className="text-3xl font-black heading-font text-white tracking-tighter mb-2 uppercase">Sentinel AI</h1>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mb-6">{authMode === 'login' ? 'Gym Owner Login' : 'Gym Owner Sign Up'}</p>
-            {authError ? (
-              <div className="w-full mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-bold text-left" role="alert">{authError}</div>
-            ) : null}
-            <form className="w-full space-y-6" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
-                {authMode === 'signup' && (
-                  <>
-                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">GYM NAME</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><LayoutList className="text-slate-600 shrink-0" size={18} /><input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Power Fitness Gym" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="organization" /></div></div>
-                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">EMAIL</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Mail className="text-slate-600 shrink-0" size={18} /><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="owner@example.com" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="email" /></div></div>
-                  <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">MOBILE</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+1 555 000 0000" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="tel" /></div></div>
-                  </>
+      <div className="min-h-screen w-full bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden">
+        {/* Navigation */}
+        <nav className="fixed top-0 left-0 right-0 z-[100] px-8 py-6 flex items-center justify-between backdrop-blur-md bg-[#020617]/40 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+              <Shield size={24} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-black heading-font tracking-tighter uppercase">Sentinel AI</h1>
+          </div>
+          <div className="hidden md:flex items-center gap-10">
+            {['Features', 'How it Works', 'About', 'Contact'].map(item => (
+              <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`} className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white transition-colors">
+                {item}
+              </a>
+            ))}
+          </div>
+          <button onClick={() => {
+            const loginSection = document.getElementById('auth-section');
+            loginSection?.scrollIntoView({ behavior: 'smooth' });
+          }} className="px-6 py-2.5 rounded-full bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all">
+            Get Started
+          </button>
+        </nav>
+
+        {/* Hero Section */}
+        <section className="relative min-h-screen flex items-center pt-20 px-8 lg:px-20 overflow-hidden">
+          {/* Animated Background Mesh */}
+          <div className="absolute inset-0 bg-mesh opacity-40 z-0" />
+          <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+
+          <div className="container mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
+            <div className="space-y-8 animate-fade-up text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-500/20">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Next-Gen Biometric Intelligence</span>
+              </div>
+              <h2 className="text-6xl lg:text-8xl font-black heading-font leading-[0.9] tracking-tighter">
+                THE FUTURE <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">OF GYM VISION.</span>
+              </h2>
+              <p className="text-lg text-slate-400 font-medium max-w-xl leading-relaxed">
+                Sentinel AI revolutionizes fitness management through neural face recognition and real-time workout analysis. Seamless access, automated tracking, and precision analytics.
+              </p>
+              <div className="flex flex-wrap gap-4 pt-4">
+                <button className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20 active:scale-95">
+                  Book a Demo <ArrowRight size={18} />
+                </button>
+                <button className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:bg-white/10 transition-all active:scale-95">
+                  Explore Tech
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-10 pt-10 border-t border-white/5">
+                {[
+                  { label: 'Latency', val: '< 50ms' },
+                  { label: 'Accuracy', val: '99.9%' },
+                  { label: 'Nodes', val: 'Unlimited' }
+                ].map(stat => (
+                  <div key={stat.label}>
+                    <div className="text-2xl font-black text-white">{stat.val}</div>
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Auth Card Container */}
+            <div id="auth-section" className="flex justify-center lg:justify-end animate-fade-in" style={{ animationDelay: '0.4s' }}>
+              <div className="glass-panel w-full max-w-md p-10 lg:p-12 border-white/10 shadow-2xl relative">
+                <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-600/20 rounded-full blur-2xl" />
+                <div className="flex flex-col items-center mb-8">
+                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
+                    {authMode === 'login' ? <LogIn size={24} className="text-blue-400" /> : <User size={24} className="text-emerald-400" />}
+                  </div>
+                  <h3 className="text-2xl font-black heading-font text-white uppercase tracking-tight">{authMode === 'login' ? 'Owner Login' : 'Register Gym'}</h3>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-2">Access Secure Protocol</p>
+                </div>
+
+                {authError && (
+                  <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] font-bold" role="alert">
+                    {authError}
+                  </div>
                 )}
-                {authMode === 'login' && (
-                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">IDENTIFIER</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><User className="text-slate-600 shrink-0" size={18} /><input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Mobile" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="username" /></div></div>
-                )}
-                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} /></div></div>
-                {authMode === 'signup' && (
-                <div className="space-y-3"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">CONFIRM PASSWORD</span><div className="flex items-center bg-[#020617] border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all"><Lock className="text-slate-600 shrink-0" size={18} /><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" autoComplete="new-password" /></div></div>
-                )}
-            <button type="submit" disabled={isAuthLoading || isSignupLoading} className="w-full bg-white text-black py-4 rounded-2xl font-black heading-font text-base flex items-center justify-center gap-3 mt-10 hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
-              {(authMode === 'login' ? isAuthLoading : isSignupLoading) ? (
-                <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin inline-block" aria-hidden /> Please wait</span>
-              ) : (
-                <>{authMode === 'login' ? 'LOG IN' : 'SIGN UP'} <ArrowRight size={18} /></>
-              )}
-            </button>
-            </form>
-            <button type="button" onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="mt-8 text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-blue-500 transition-colors">{authMode === 'login' ? 'New user? Sign Up here' : 'Already have an account? Log In'}</button>
-            <button type="button" onClick={() => window.location.href = '/admin'} className="mt-4 text-[9px] font-black text-blue-500/50 uppercase tracking-widest hover:text-blue-500 transition-colors flex items-center gap-2"><ShieldAlert size={12} /> Admin Control Panel</button>
-        </div>
+
+                <form className="space-y-5" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
+                  {authMode === 'signup' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Gym Name</label>
+                        <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                          <LayoutList className="text-slate-600" size={16} />
+                          <input type="text" value={gymName} onChange={e => setGymName(e.target.value)} placeholder="Elite Fitness Center" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
+                        <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                          <Mail className="text-slate-600" size={16} />
+                          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@gym.com" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">{authMode === 'login' ? 'Identifier' : 'Mobile Number'}</label>
+                    <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                      {authMode === 'login' ? <User className="text-slate-600" size={16} /> : <Activity className="text-slate-600" size={16} />}
+                      <input 
+                        type="text" 
+                        value={authMode === 'login' ? identifier : mobile} 
+                        onChange={e => authMode === 'login' ? setIdentifier(e.target.value) : setMobile(e.target.value)} 
+                        placeholder={authMode === 'login' ? "Email or Mobile" : "+1 000 000 0000"} 
+                        className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Security Key</label>
+                    <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                      <Lock className="text-slate-600" size={16} />
+                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
+                    </div>
+                  </div>
+
+                  {authMode === 'signup' && (
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Confirm Key</label>
+                      <div className="flex items-center bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                        <Lock className="text-slate-600" size={16} />
+                        <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full bg-transparent border-none text-sm text-white font-bold focus:outline-none placeholder:text-slate-700 ml-4" />
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={isAuthLoading || isSignupLoading} className="w-full bg-white text-black py-4 rounded-2xl font-black heading-font text-sm flex items-center justify-center gap-3 mt-8 hover:bg-blue-600 hover:text-white transition-all active:scale-95 disabled:opacity-50">
+                    {(authMode === 'login' ? isAuthLoading : isSignupLoading) ? (
+                      <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> AUTHENTICATING...</span>
+                    ) : (
+                      <>{authMode === 'login' ? 'INITIATE LOGIN' : 'CREATE ACCOUNT'} <ArrowRight size={18} /></>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-8 flex flex-col items-center gap-4">
+                  <button onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-blue-400 transition-colors">
+                    {authMode === 'login' ? "Don't have a gym ID? Register" : "Already registered? Log in"}
+                  </button>
+                  <button onClick={() => window.location.href = '/admin'} className="flex items-center gap-2 text-[10px] font-black text-blue-500/40 uppercase tracking-widest hover:text-blue-500 transition-colors">
+                    <ShieldAlert size={12} /> Admin Protocol
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Feature Grid */}
+        <section id="features" className="py-32 px-8 lg:px-20 bg-[#020617] relative">
+          <div className="container mx-auto">
+            <div className="max-w-2xl mb-20 space-y-4">
+              <h3 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">Core Capabilities</h3>
+              <h2 className="text-4xl lg:text-5xl font-black heading-font tracking-tight">ENGINEERED FOR EXCELLENCE.</h2>
+              <p className="text-slate-500 font-medium">We've combined computer vision with powerful analytics to create the most advanced gym management system ever built.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[
+                { title: 'Neural Face ID', desc: 'Identify members in under 50ms with 99.9% accuracy using edge computing.', icon: Shield, color: 'text-blue-500' },
+                { title: 'AI Workout Pro', desc: 'Real-time pose estimation to track reps, sets, and form for every exercise.', icon: Activity, color: 'text-emerald-500' },
+                { title: 'Smart Nodes', desc: 'Connect any ONVIF or P2P camera to our neural network effortlessly.', icon: Camera, color: 'text-purple-500' },
+                { title: 'Live Analytics', desc: 'Monitor peak hours, attendance trends, and member behavior in real-time.', icon: LayoutList, color: 'text-amber-500' },
+                { title: 'Auto Notifications', desc: 'Automated WhatsApp and Email alerts for entries and plan expiries.', icon: Bell, color: 'text-rose-500' },
+                { title: 'Secure Vault', desc: 'Biometric data is hashed and secured using military-grade encryption.', icon: Lock, color: 'text-cyan-500' }
+              ].map((feat, i) => (
+                <div key={i} className="glass-panel p-10 group hover:border-blue-500/30 transition-all hover:-translate-y-2">
+                  <div className={`w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform ${feat.color}`}>
+                    <feat.icon size={28} />
+                  </div>
+                  <h4 className="text-xl font-black heading-font mb-4 uppercase tracking-tight">{feat.title}</h4>
+                  <p className="text-slate-500 text-sm leading-relaxed font-medium">{feat.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Motion Section - System in Action */}
+        <section id="how-it-works" className="py-32 px-8 lg:px-20 bg-white/[0.02]">
+          <div className="container mx-auto text-center space-y-20">
+            <div className="max-w-3xl mx-auto space-y-6">
+              <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em]">Intelligence in Motion</h3>
+              <h2 className="text-5xl lg:text-7xl font-black heading-font tracking-tighter">SEE EVERYTHING. <br /> KNOW EVERYTHING.</h2>
+              <p className="text-slate-400 text-lg">Our neural nodes process thousands of data points per second to ensure your gym runs like a well-oiled machine.</p>
+            </div>
+
+            <div className="relative aspect-video max-w-6xl mx-auto rounded-[40px] overflow-hidden group shadow-2xl border border-white/10">
+              <img src="/hero-bg.png" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="System Preview" />
+              <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center gap-6 group-hover:opacity-0 transition-opacity duration-500">
+                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-2xl">
+                  <div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-black border-b-[12px] border-b-transparent ml-2" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white">System Demonstration Protocol</span>
+              </div>
+              
+              {/* Overlay elements to look like a UI */}
+              <div className="absolute top-10 left-10 p-6 glass-morphism rounded-2xl border border-white/10 hidden md:block animate-fade-in">
+                 <div className="flex items-center gap-3 mb-4">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white">NODE_01 ACTIVE</span>
+                 </div>
+                 <div className="space-y-2">
+                    <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-2/3 h-full bg-blue-500" /></div>
+                    <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden"><div className="w-1/2 h-full bg-indigo-500" /></div>
+                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Call to Action */}
+        <section className="py-32 px-8 lg:px-20 relative overflow-hidden">
+          <div className="absolute inset-0 bg-blue-600 opacity-[0.03] z-0" />
+          <div className="container mx-auto relative z-10 text-center">
+            <div className="max-w-4xl mx-auto glass-panel p-20 lg:p-32 border-blue-500/20">
+               <h2 className="text-4xl lg:text-6xl font-black heading-font tracking-tight mb-8">READY TO EVOLVE?</h2>
+               <p className="text-slate-400 text-lg mb-12 max-w-xl mx-auto">Join the 500+ gyms using Sentinel AI to automate security and enhance member performance.</p>
+               <div className="flex flex-col sm:flex-row gap-6 justify-center">
+                  <button onClick={() => {
+                    const loginSection = document.getElementById('auth-section');
+                    loginSection?.scrollIntoView({ behavior: 'smooth' });
+                  }} className="px-10 py-5 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest hover:bg-blue-500 transition-all">
+                    Start Your Free Trial
+                  </button>
+                  <button className="px-10 py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all">
+                    Talk to an Expert
+                  </button>
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="py-12 px-8 border-t border-white/5 bg-black/20">
+          <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex items-center gap-3">
+              <Shield size={20} className="text-blue-500" />
+              <span className="font-black heading-font uppercase tracking-tighter text-lg">Sentinel AI</span>
+            </div>
+            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+              © 2026 Sentinel Intelligence Systems. All rights reserved.
+            </div>
+            <div className="flex gap-8">
+              {['Privacy', 'Terms', 'Security'].map(item => (
+                <a key={item} href="#" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">{item}</a>
+              ))}
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
