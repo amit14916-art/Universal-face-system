@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Play, Square, Activity, Info, Camera as Luci
 
 /* Global MediaPipe objects from index.html scripts */
 const Pose = window.Pose;
+const FaceMesh = window.FaceMesh;
 const POSE_CONNECTIONS = window.POSE_CONNECTIONS;
 const drawConnectors = window.drawConnectors;
 const drawLandmarks = window.drawLandmarks;
@@ -93,10 +94,56 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     height: '', weight: '', body_fat: '', heart_rate: ''
   });
   const [statsConfirmed, setStatsConfirmed] = useState(false);
+  const [expression, setExpression] = useState('Neutral');
+  const [expressionSuggestion, setExpressionSuggestion] = useState('');
 
   // Keep refs in sync with state
   useEffect(() => { exerciseRef.current = exercise; }, [exercise]);
   useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+
+  // ─── Face Results Handler ──────────────────────────────────────────────────
+  const onFaceResults = useCallback((results) => {
+    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+      setExpression('No face detected');
+      setExpressionSuggestion('');
+      return;
+    }
+    const landmarks = results.multiFaceLandmarks[0];
+    
+    // Mouth openness (distance between upper and lower inner lip)
+    const upperLip = landmarks[13];
+    const lowerLip = landmarks[14];
+    const mouthDist = Math.abs(upperLip.y - lowerLip.y);
+    
+    // Eyes openness (distance between upper and lower eyelids)
+    const lEyeTop = landmarks[159];
+    const lEyeBot = landmarks[145];
+    const rEyeTop = landmarks[386];
+    const rEyeBot = landmarks[374];
+    const avgEyeDist = (Math.abs(lEyeTop.y - lEyeBot.y) + Math.abs(rEyeTop.y - rEyeBot.y)) / 2;
+
+    // Eyebrows distance from eyes
+    const lBrow = landmarks[52];
+    const rBrow = landmarks[282];
+    const browDist = Math.abs((lBrow.y + rBrow.y)/2 - (lEyeTop.y + rEyeTop.y)/2);
+
+    let currentExpr = 'Focused';
+    let currentSugg = 'Looking good. Keep up the steady form!';
+
+    if (mouthDist > 0.05) {
+      currentExpr = 'Heavy Breathing / Fatigue';
+      currentSugg = 'Control your breathing: Inhale on the way down, exhale on the way up.';
+    } else if (avgEyeDist < 0.015 && browDist < 0.03) {
+      currentExpr = 'Straining (Squinting)';
+      currentSugg = 'You look strained. Keep your face relaxed to avoid neck tension. Lower the weight if needed.';
+    } else if (browDist > 0.06) {
+      currentExpr = 'Straining (Eyebrows Raised)';
+      currentSugg = 'Maintain a steady, neutral spine and face. Do not push through bad pain.';
+    }
+
+    setExpression(currentExpr);
+    setExpressionSuggestion(currentSugg);
+  }, []);
 
   // ─── Core Results Handler ──────────────────────────────────────────────────
   const onResults = useCallback((results) => {
@@ -401,12 +448,29 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
 
     pose.onResults(onResults);
 
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    });
+    
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    
+    faceMesh.onResults(onFaceResults);
+
     let camera = null;
     if (videoRef.current) {
       camera = new Camera(videoRef.current, {
         onFrame: async () => {
           if (videoRef.current) {
-            await pose.send({ image: videoRef.current });
+            // Process both Pose and FaceMesh
+            await Promise.all([
+              pose.send({ image: videoRef.current }),
+              faceMesh.send({ image: videoRef.current })
+            ]);
           }
         },
         width: 640,
@@ -418,8 +482,9 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     return () => {
       if (camera) camera.stop();
       pose.close();
+      faceMesh.close();
     };
-  }, [exercise, onResults]);
+  }, [exercise, onResults, onFaceResults]);
 
   // ─── Reset stage ref when exercise changes ─────────────────────────────────
   const handleExerciseChange = (ex) => {
@@ -656,6 +721,27 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
               <div className="text-3xl font-black text-emerald-500 mt-2 tabular-nums flex items-center gap-2">
                 {biometrics.heart_rate} <Activity size={18} className="animate-pulse" />
               </div>
+            </div>
+          </div>
+
+          {/* Facial Expression Analysis */}
+          <div className="p-6 bg-purple-600/5 rounded-3xl border border-purple-500/20">
+            <h4 className="text-purple-400 font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+              <LucideCamera size={14} /> Expression Analysis
+            </h4>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">State</span>
+                <span className={`text-sm font-bold ${expression.includes('Straining') ? 'text-orange-400' : expression.includes('Fatigue') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {expression}
+                </span>
+              </div>
+              {expressionSuggestion && (
+                <div className="mt-2 text-xs text-slate-300 bg-black/40 p-3 rounded-xl border border-white/5">
+                  <span className="text-purple-400 font-bold mr-2">Tip:</span> 
+                  {expressionSuggestion}
+                </div>
+              )}
             </div>
           </div>
 
