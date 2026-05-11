@@ -89,6 +89,11 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   const [poseVisible,   setPoseVisible]   = useState(false);     // detection status
   const [biometrics,    setBiometrics]    = useState({ height: 0, weight: 0, body_fat: 0, heart_rate: 0 });
 
+  const [userStats, setUserStats] = useState({
+    height: '', weight: '', body_fat: '', heart_rate: ''
+  });
+  const [statsConfirmed, setStatsConfirmed] = useState(false);
+
   // Keep refs in sync with state
   useEffect(() => { exerciseRef.current = exercise; }, [exercise]);
   useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
@@ -372,54 +377,11 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
         } catch(e) { /* ROI out of bounds */ }
     }
 
-    // 2. Height & Weight
-    const lAnkle = lm[27];
-    const rAnkle = lm[28];
-    const lHip   = lm[23];
-    const rHip   = lm[24];
-    
-    let estHeight = biometrics.height || 0;
-    let estWeight = biometrics.weight || 0;
-    let estBF     = biometrics.body_fat || 0;
-
-    // Safety Guard: Only calculate if we can see the person's full torso and legs
-    if (nose && lHip && rHip && nose.visibility > 0.6 && lHip.visibility > 0.6) {
-        if (lAnkle && rAnkle && lAnkle.visibility > 0.5) {
-            const midAnkleY = (lAnkle.y + rAnkle.y) / 2;
-            estHeight = Math.round((midAnkleY - nose.y) * 220);
-            
-            const shL = lm[11], shR = lm[12];
-            if (shL && shR && shL.visibility > 0.6) {
-                const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
-                const hipW = Math.sqrt(Math.pow(lHip.x - rHip.x, 2) + Math.pow(lHip.y - rHip.y, 2));
-                const vRatio = hipW / (shW + 1e-6);
-                const hM = estHeight / 100;
-                estWeight = Math.round((hM * hM) * (shW * 150) + (vRatio * 20));
-                estBF = Math.round(vRatio * 30);
-            }
-            }
-        } else {
-            // Upper Body Fallback: Estimate from shoulder width and head size
-            const shL = lm[11], shR = lm[12];
-            if (shL && shR && shL.visibility > 0.6) {
-                const shW = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
-                // Assuming average shoulder width is 40cm
-                const headToSh = Math.abs(shL.y - nose.y);
-                estHeight = Math.round((headToSh * 10) * 170); // Very rough guess
-                if (estHeight > 220) estHeight = 175; // Clamp
-                if (estHeight < 140) estHeight = 160; 
-                
-                estWeight = Math.round(shW * 500); // Rough guess
-                estBF = 18; // Default
-            }
-        }
-
-    setBiometrics({
-        height: estHeight,
-        weight: estWeight,
-        body_fat: estBF,
-        heart_rate: currentBpm
-    });
+    // ── Keep only heart rate update ───────────────────────────
+    setBiometrics(prev => ({
+        ...prev,                 // ← keeps height/weight/body_fat from user input
+        heart_rate: currentBpm   // ← only update HR from camera
+    }));
     ctx.restore();
   }, []); // no deps — reads live data via refs
 
@@ -500,6 +462,80 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   const avgAccuracy = allAccuracies.length > 0
     ? Math.floor(allAccuracies.reduce((a, b) => a + b) / allAccuracies.length)
     : 100;
+
+  // ─── Pre-Workout Stats Gate ────────────────────────────────────────────────
+  if (!statsConfirmed) {
+    return (
+      <div className="flex flex-col gap-8 p-10 bg-[#0f172a] rounded-3xl border border-white/10 max-w-2xl mx-auto">
+        <div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-tight">
+            Your Body Stats
+          </h2>
+          <p className="text-slate-500 text-sm mt-2 font-bold uppercase tracking-widest">
+            Enter your actual measurements for accurate session tracking
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          {[
+            { key: 'height',     label: 'Height',     unit: 'cm',  placeholder: '175', required: true  },
+            { key: 'weight',     label: 'Weight',     unit: 'kg',  placeholder: '75',  required: true  },
+            { key: 'body_fat',   label: 'Body Fat',   unit: '%',   placeholder: '18',  required: false },
+            { key: 'heart_rate', label: 'Resting HR', unit: 'bpm', placeholder: '72',  required: false },
+          ].map(({ key, label, unit, placeholder, required }) => (
+            <div key={key} className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                {label} ({unit})
+                {required && <span className="text-red-500">*</span>}
+              </label>
+              <div className="flex items-center bg-black/40 border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+                <input
+                  type="number"
+                  placeholder={placeholder}
+                  value={userStats[key]}
+                  onChange={e => setUserStats(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="w-full bg-transparent text-white font-black text-xl focus:outline-none placeholder:text-slate-700"
+                />
+                <span className="text-slate-600 font-black text-sm ml-2">{unit}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-5 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
+          <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
+            💡 Height and weight are required. Body fat and heart rate are optional — 
+            leave blank to use defaults (18% BF, 72 BPM).
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            // Fill defaults for optional fields
+            setUserStats(prev => ({
+              ...prev,
+              body_fat:   prev.body_fat   || '18',
+              heart_rate: prev.heart_rate || '72',
+            }));
+            setStatsConfirmed(true);
+            // Seed biometrics with real values immediately
+            setBiometrics({
+              height:     parseFloat(userStats.height)     || 170,
+              weight:     parseFloat(userStats.weight)     || 70,
+              body_fat:   parseFloat(userStats.body_fat)   || 18,
+              heart_rate: parseFloat(userStats.heart_rate) || 72,
+            });
+          }}
+          disabled={!userStats.height || !userStats.weight}
+          className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest 
+                     disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500 
+                     active:scale-95 transition-all text-sm"
+        >
+          Start Workout Session →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6 bg-[#0f172a] rounded-3xl border border-white/10 backdrop-blur-xl">
@@ -598,13 +634,13 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
-              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Height</span>
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Height</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
                 {biometrics.height > 0 ? biometrics.height : '--'} <span className="text-xs text-slate-500">{biometrics.height > 0 ? 'cm' : ''}</span>
               </div>
             </div>
             <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/10 shadow-xl">
-              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Est. Weight</span>
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Weight</span>
               <div className="text-3xl font-black text-white mt-2 tabular-nums">
                 {biometrics.weight > 0 ? biometrics.weight : '--'} <span className="text-xs text-slate-500">{biometrics.weight > 0 ? 'kg' : ''}</span>
               </div>
