@@ -531,7 +531,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
   // ─── Pre-Workout Stats Gate ────────────────────────────────────────────────
   if (!statsConfirmed) {
     return (
-      <div className="flex flex-col gap-8 p-10 bg-[#0f172a] rounded-3xl border border-white/10 max-w-2xl mx-auto">
+      <div className="flex flex-col space-y-8 p-8 bg-[#0f172a] rounded-3xl border border-white/10 w-full mb-10 shadow-2xl" style={{ maxWidth: '42rem', margin: '0 auto' }}>
         <div>
           <h2 className="text-2xl font-black text-white uppercase tracking-tight">
             Your Body Stats
@@ -548,12 +548,12 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             { key: 'body_fat',   label: 'Body Fat',   unit: '%',   placeholder: '18',  required: false },
             { key: 'heart_rate', label: 'Resting HR', unit: 'bpm', placeholder: '72',  required: false },
           ].map(({ key, label, unit, placeholder, required }) => (
-            <div key={key} className="space-y-2">
+            <div key={key} className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 {label} ({unit})
                 {required && <span className="text-red-500">*</span>}
               </label>
-              <div className="flex items-center bg-black/40 border-2 border-white/5 rounded-2xl px-5 py-4 focus-within:border-blue-600 transition-all">
+              <div className="flex items-center bg-black/40 border-2 border-white/5 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all" style={{ minHeight: '64px' }}>
                 <input
                   type="number"
                   placeholder={placeholder}
@@ -567,7 +567,7 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
           ))}
         </div>
 
-        <div className="p-5 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
+        <div className="p-6 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
           <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
             💡 Height and weight are required. Body fat and heart rate are optional — 
             leave blank to use defaults (18% BF, 72 BPM).
@@ -592,9 +592,10 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
             });
           }}
           disabled={!userStats.height || !userStats.weight}
-          className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest 
+          className="w-full bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest 
                      disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500 
-                     active:scale-95 transition-all text-sm"
+                     active:scale-95 transition-all text-sm flex items-center justify-center"
+          style={{ minHeight: '64px' }}
         >
           Start Workout Session →
         </button>
