@@ -528,83 +528,84 @@ const WorkoutFormAI = ({ onSessionEnd }) => {
     ? Math.floor(allAccuracies.reduce((a, b) => a + b) / allAccuracies.length)
     : 100;
 
-  // ─── Pre-Workout Stats Gate ────────────────────────────────────────────────
-  if (!statsConfirmed) {
-    return (
-      <div className="flex flex-col space-y-8 p-8 bg-[#0f172a] rounded-3xl border border-white/10 w-full mb-10 shadow-2xl" style={{ maxWidth: '42rem', margin: '0 auto' }}>
-        <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-            Your Body Stats
-          </h2>
-          <p className="text-slate-500 text-sm mt-2 font-bold uppercase tracking-widest">
-            Enter your actual measurements for accurate session tracking
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6">
-          {[
-            { key: 'height',     label: 'Height',     unit: 'cm',  placeholder: '175', required: true  },
-            { key: 'weight',     label: 'Weight',     unit: 'kg',  placeholder: '75',  required: true  },
-            { key: 'body_fat',   label: 'Body Fat',   unit: '%',   placeholder: '18',  required: false },
-            { key: 'heart_rate', label: 'Resting HR', unit: 'bpm', placeholder: '72',  required: false },
-          ].map(({ key, label, unit, placeholder, required }) => (
-            <div key={key} className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                {label} ({unit})
-                {required && <span className="text-red-500">*</span>}
-              </label>
-              <div className="flex items-center bg-black/40 border-2 border-white/5 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all" style={{ minHeight: '64px' }}>
-                <input
-                  type="number"
-                  placeholder={placeholder}
-                  value={userStats[key]}
-                  onChange={e => setUserStats(prev => ({ ...prev, [key]: e.target.value }))}
-                  className="w-full bg-transparent text-white font-black text-xl focus:outline-none placeholder:text-slate-700"
-                />
-                <span className="text-slate-600 font-black text-sm ml-2">{unit}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-6 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
-          <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
-            💡 Height and weight are required. Body fat and heart rate are optional — 
-            leave blank to use defaults (18% BF, 72 BPM).
-          </p>
-        </div>
-
-        <button
-          onClick={() => {
-            // Fill defaults for optional fields
-            setUserStats(prev => ({
-              ...prev,
-              body_fat:   prev.body_fat   || '18',
-              heart_rate: prev.heart_rate || '72',
-            }));
-            setStatsConfirmed(true);
-            // Seed biometrics with real values immediately
-            setBiometrics({
-              height:     parseFloat(userStats.height)     || 170,
-              weight:     parseFloat(userStats.weight)     || 70,
-              body_fat:   parseFloat(userStats.body_fat)   || 18,
-              heart_rate: parseFloat(userStats.heart_rate) || 72,
-            });
-          }}
-          disabled={!userStats.height || !userStats.weight}
-          className="w-full bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest 
-                     disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500 
-                     active:scale-95 transition-all text-sm flex items-center justify-center"
-          style={{ minHeight: '64px' }}
-        >
-          Start Workout Session →
-        </button>
-      </div>
-    );
-  }
-
+  // ─── Main Component Return ────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-6 p-6 bg-[#0f172a] rounded-3xl border border-white/10 backdrop-blur-xl">
+    <div className="relative flex flex-col gap-6 p-6 bg-[#0f172a] rounded-3xl border border-white/10 backdrop-blur-xl overflow-hidden">
+      
+      {/* ─── Pre-Workout Stats Gate (OVERLAY) ─────────────────────────── */}
+      {!statsConfirmed && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-md p-6">
+          <div className="flex flex-col space-y-8 p-8 bg-[#0f172a] rounded-3xl border border-white/10 w-full shadow-2xl" style={{ maxWidth: '42rem', margin: '0 auto' }}>
+            <div>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">
+                Your Body Stats
+              </h2>
+              <p className="text-slate-500 text-sm mt-2 font-bold uppercase tracking-widest">
+                Enter your actual measurements for accurate session tracking
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {[
+                { key: 'height',     label: 'Height',     unit: 'cm',  placeholder: '175', required: true  },
+                { key: 'weight',     label: 'Weight',     unit: 'kg',  placeholder: '75',  required: true  },
+                { key: 'body_fat',   label: 'Body Fat',   unit: '%',   placeholder: '18',  required: false },
+                { key: 'heart_rate', label: 'Resting HR', unit: 'bpm', placeholder: '72',  required: false },
+              ].map(({ key, label, unit, placeholder, required }) => (
+                <div key={key} className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    {label} ({unit})
+                    {required && <span className="text-red-500">*</span>}
+                  </label>
+                  <div className="flex items-center bg-black/40 border-2 border-white/5 rounded-2xl px-6 py-5 focus-within:border-blue-600 transition-all" style={{ minHeight: '64px' }}>
+                    <input
+                      type="number"
+                      placeholder={placeholder}
+                      value={userStats[key]}
+                      onChange={e => setUserStats(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="w-full bg-transparent text-white font-black text-xl focus:outline-none placeholder:text-slate-700"
+                    />
+                    <span className="text-slate-600 font-black text-sm ml-2">{unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
+              <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
+                💡 Height and weight are required. Body fat and heart rate are optional — 
+                leave blank to use defaults (18% BF, 72 BPM).
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                // Fill defaults for optional fields
+                setUserStats(prev => ({
+                  ...prev,
+                  body_fat:   prev.body_fat   || '18',
+                  heart_rate: prev.heart_rate || '72',
+                }));
+                setStatsConfirmed(true);
+                // Seed biometrics with real values immediately
+                setBiometrics({
+                  height:     parseFloat(userStats.height)     || 170,
+                  weight:     parseFloat(userStats.weight)     || 70,
+                  body_fat:   parseFloat(userStats.body_fat)   || 18,
+                  heart_rate: parseFloat(userStats.heart_rate) || 72,
+                });
+              }}
+              disabled={!userStats.height || !userStats.weight}
+              className="w-full bg-blue-600 text-white font-black rounded-2xl uppercase tracking-widest 
+                         disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500 
+                         active:scale-95 transition-all text-sm flex items-center justify-center"
+              style={{ minHeight: '64px' }}
+            >
+              Start Workout Session →
+            </button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
