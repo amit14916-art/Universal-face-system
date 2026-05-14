@@ -755,10 +755,7 @@ async def login(request: Request, auth_request: AuthRequest, db: AsyncSession = 
         )
         owner = result.scalars().first()
         
-        # Use constant-time comparison to prevent timing attacks
         if not owner:
-            # Dummy check to prevent timing attacks
-            bcrypt.checkpw(auth_request.password.encode('utf-8'), b'$2b$12$invalid')
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Verify password hash
