@@ -239,7 +239,7 @@ async def health_check():
     return {"status": "ok", "timestamp": time.time()}
 
 # Enable CORS for frontend integration - RESTRICTED ORIGINS
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:8081,http://localhost:8082").split(",")
 allowed_origins = [o.strip() for o in allowed_origins if o.strip()]
 
 app.add_middleware(
