@@ -19,6 +19,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import queue
+import google.generativeai as genai
 
 _APP_START_MONOTONIC: float | None = None
 
@@ -161,6 +162,14 @@ class SubscriptionRequest(BaseModel):
     expiry_date: str
     plan_type: str = Field(..., max_length=50)
 
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+
+class ImageAnalysisRequest(BaseModel):
+    image_base64: str = Field(..., description="Base64 encoded image")
+    analysis_type: str = Field(default="general", description="Type: general, form, security, biometric")
+    context: str = Field(default="", description="Additional context for analysis")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _APP_START_MONOTONIC
@@ -179,6 +188,13 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("SYSTEM: Database Connection Established")
 
+    # Configure Gemini AI
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    if google_api_key:
+        genai.configure(api_key=google_api_key)
+        logger.info("SYSTEM: Gemini AI Configured")
+    else:
+        logger.warning("⚠️  GOOGLE_API_KEY not set! Gemini features will not work.")
     
     # Initialize Sentinel Engine inside API process for shared memory
     engine.start_background_workers()
@@ -297,6 +313,49 @@ async def stream_node(request: Request, node_name: str):
 @app.get("/api/telemetry")
 async def get_system_telemetry():
     return engine.get_telemetry()
+
+@app.post("/api/chat")
+async def chat_with_gemini(request: ChatRequest):
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(request.message)
+        return {"response": response.text}
+    except Exception as e:
+        logger.error(f"Gemini chat error: {e}")
+        raise HTTPException(status_code=500, detail="AI service unavailable")
+
+@app.post("/api/analyze-image")
+async def analyze_image(request: ImageAnalysisRequest):
+    try:
+        # Decode base64 image
+        if "," in request.image_base64:
+            image_data = base64.b64decode(request.image_base64.split(",")[1])
+        else:
+            image_data = base64.b64decode(request.image_base64)
+        
+        # Convert to PIL Image
+        from PIL import Image
+        import io
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Prepare analysis prompt based on type
+        prompts = {
+            "form": f"Analyze this workout form image. Check for: 1) Posture alignment, 2) Range of motion, 3) Balance, 4) Potential injury risks. Be specific with feedback. Context: {request.context}",
+            "security": "Analyze this image for security concerns. Check for: 1) Face clarity and quality, 2) Suspicious features, 3) Liveness indicators, 4) Any anomalies. Context: {}".format(request.context),
+            "biometric": "Analyze the biometric quality of this face image. Evaluate: 1) Image sharpness, 2) Lighting quality, 3) Face alignment, 4) Confidence score for identification. Context: {}".format(request.context),
+            "general": f"Analyze this image and provide insights. {request.context}"
+        }
+        
+        prompt = prompts.get(request.analysis_type, prompts["general"])
+        
+        # Use Gemini Vision to analyze
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content([prompt, image])
+        
+        return {"analysis": response.text, "type": request.analysis_type}
+    except Exception as e:
+        logger.error(f"Image analysis error: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.post("/api/recognize/crop")
 async def recognize_crop(request: Request, db: AsyncSession = Depends(get_db)):

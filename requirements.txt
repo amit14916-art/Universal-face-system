@@ -21,6 +21,8 @@ slowapi
 python-jose[cryptography]
 python-multipart
 prometheus-client
+google-generativeai
+pillow
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision

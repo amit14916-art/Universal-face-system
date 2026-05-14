@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import './index.css';
 import StreamGrid from './components/StreamGrid';
-import WorkoutFormAI from './components/WorkoutFormAI';
+import ChatAI from './components/ChatAI';
+import ImageAnalyzer from './components/ImageAnalyzer';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -884,9 +885,9 @@ function App() {
         <nav className="flex items-center justify-between py-5 px-6 border-b border-white/5 bg-[#020617]/50 backdrop-blur-3xl sticky top-0 z-50">
           <div className="flex items-center gap-4 shrink-0"><div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-xl shadow-blue-600/30"><Shield size={18} className="text-white" /></div><h1 className="text-base font-black heading-font text-white leading-none uppercase tracking-tight">{currentGymName || 'Sentinel_AI'}</h1></div>
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0 shadow-inner">
-            {['dashboard', 'workout', 'logs', 'registry', 'settings'].map(tab => (
+            {['dashboard', 'ai', 'logs', 'registry', 'settings'].map(tab => (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-7 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all relative ${activeTab === tab ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' : 'text-slate-500 hover:text-white'}`}>
-                {tab === 'dashboard' ? 'Analytics' : tab === 'workout' ? 'AI Workout' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}
+                {tab === 'dashboard' ? 'Analytics' : tab === 'ai' ? 'Vision AI' : tab === 'logs' ? 'Activity' : tab === 'registry' ? 'Registry' : 'Nodes'}
                 {activeTab === tab && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_10px_white]" />}
               </button>
             ))}
@@ -949,88 +950,11 @@ function App() {
                                 <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[12px] font-black text-slate-500 uppercase tracking-wider mb-6">Attendance Trend</h4><div className="flex-1 min-h-0 relative">{!hasWeekData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[12px] text-slate-600 font-bold">No check-ins in the last 7 days yet.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><AreaChart data={weekTrend}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="day" hide /><YAxis hide /><Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px'}} /><Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" /></AreaChart></ResponsiveContainer></div></div>
                                 <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[300px] flex flex-col relative"><h4 className="text-[12px] font-black text-slate-500 uppercase tracking-wider mb-6">Peak Activity</h4><div className="flex-1 min-h-0 relative">{!hasPeakData ? (<div className="absolute inset-0 flex items-center justify-center z-10 text-center px-6"><p className="text-[12px] text-slate-600 font-bold">No visits recorded today yet.</p></div>) : null}<ResponsiveContainer width="100%" height="100%"><BarChart data={peakHours}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="hour" hide /><YAxis hide /><Bar dataKey="count" radius={[4, 4, 0, 0]}>{peakHours.map((e, idx) => (<Cell key={`cell-${idx}`} fill={e.count > 0 ? '#2563eb' : '#ffffff05'} />))}</Bar></BarChart></ResponsiveContainer></div></div>
                              </div>
+                             <div className="glass-panel p-8 bg-white/[0.01] rounded-[40px] h-[400px] flex flex-col"><h4 className="text-[12px] font-black text-slate-500 uppercase tracking-wider mb-6">AI Assistant</h4><ChatAI /></div>
                            </div>
-                         ) : activeTab === 'workout' ? (
+                         ) : activeTab === 'ai' ? (
                            <div className="space-y-8 p-4 animate-fade">
-                             <WorkoutFormAI onSessionEnd={async (data) => {
-                               const memberId = lastRecognition?.id || 1; 
-                               setIsSavingWorkout(true);
-                               try {
-                                 await authFetch(`${API_BASE}/api/workouts/save`, {
-                                   method: 'POST',
-                                   body: JSON.stringify({
-                                     owner_id: parseInt(ownerId),
-                                     member_id: memberId,
-                                     exercise_name: data.exercise,
-                                     reps: data.reps,
-                                     avg_accuracy: data.accuracy,
-                                     height: data.height,
-                                     body_fat: data.body_fat,
-                                     weight: data.weight,
-                                     heart_rate: data.heart_rate
-                                   })
-                                 });
-                                 await fetchData();
-                                 alert(`Session Saved! ${data.exercise}: ${data.reps} reps, ${data.accuracy}% accuracy`);
-                               } catch (e) {
-                                 console.error("Failed to save workout", e);
-                               }
-                               setIsSavingWorkout(false);
-                             }} />
-                             
-                             <div className="glass-panel p-8 bg-white/[0.01] border-white/5 rounded-[40px] space-y-6">
-                                <div className="flex items-center justify-between">
-                                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Recent Sessions</h3>
-                                  <button onClick={fetchData} className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-400">Refresh Data</button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                  {workouts.length > 0 ? (
-                                    workouts.map((session) => (
-                                      <div key={session.id} className="glass-panel p-6 bg-white/[0.02] border-white/10 rounded-3xl flex flex-col gap-4 group hover:bg-blue-600/5 transition-all">
-                                        <div className="flex items-start justify-between">
-                                          <div>
-                                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">{session.exercise}</div>
-                                            <div className="text-xl font-black text-white tracking-tight">{session.member_name}</div>
-                                          </div>
-                                          <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black ${session.accuracy > 80 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                            {session.accuracy}% ACC
-                                          </div>
-                                        </div>
-                                        <div className="flex items-end justify-between mt-2">
-                                          <div className="flex gap-6">
-                                            <div className="flex flex-col">
-                                              <span className="text-[10px] text-slate-500 font-black uppercase">REPS</span>
-                                              <span className="text-3xl font-black text-white tabular-nums">{session.reps}</span>
-                                            </div>
-                                            {(session.height || session.body_fat) && (
-                                              <div className="flex flex-col">
-                                                <span className="text-[10px] text-slate-500 font-black uppercase">PROFILE</span>
-                                                <span className="text-[10px] font-black text-slate-300 uppercase leading-tight">
-                                                  {session.height ? `${session.height}cm` : ''}
-                                                  {session.height && session.weight ? ' | ' : ''}
-                                                  {session.weight ? `${session.weight}kg` : ''}
-                                                  {(session.height || session.weight) && session.body_fat ? ' | ' : ''}
-                                                  {session.body_fat ? `${session.body_fat}% BF` : ''}
-                                                  {(session.height || session.weight || session.body_fat) && session.heart_rate ? ' | ' : ''}
-                                                  {session.heart_rate ? `${session.heart_rate} BPM` : ''}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                          <div className="text-[9px] text-slate-600 font-bold uppercase">
-                                            {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="col-span-full py-12 text-center">
-                                      <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">No sessions logged yet.</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
+                             <ImageAnalyzer />
                            </div>
                          ) : activeTab === 'registry' ? (
                           <div className="w-full h-full text-left p-4">
